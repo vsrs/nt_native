@@ -1,0 +1,12 @@
+[package]
+name = "nt_native"
+version = "0.1.0"
+authors = ["vsrs <vit@conrlab.com>"]
+edition = "2018"
+readme = "README.md"
+keywords = ["windows", "NT", "native"]
+categories = ["no-std", "os::windows-apis"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/vsrs/nt_native.git"
+
+[dependencies]
