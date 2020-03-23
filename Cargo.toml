@@ -8,5 +8,6 @@ keywords = ["windows", "NT", "native"]
 categories = ["no-std", "os::windows-apis"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/vsrs/nt_native.git"
+description = "Windows Native subsystem bindings for the Rust programming language."
 
 [dependencies]
