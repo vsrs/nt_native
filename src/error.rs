@@ -1,6 +1,7 @@
 use winapi::shared::ntdef::NTSTATUS;
-use winapi::shared::ntstatus::{STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_OBJECT_NAME_COLLISION, STATUS_ACCESS_DENIED};
-
+use winapi::shared::ntstatus::{
+    STATUS_ACCESS_DENIED, STATUS_OBJECT_NAME_COLLISION, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND,
+};
 
 #[derive(Eq, PartialEq)]
 pub struct Error(NTSTATUS);
@@ -8,11 +9,10 @@ pub struct Error(NTSTATUS);
 unsafe impl Sync for Error {}
 unsafe impl Send for Error {}
 
-pub const OBJECT_NOT_FOUND : Error = Error(STATUS_OBJECT_NAME_NOT_FOUND);
-pub const PATH_NOT_FOUND : Error = Error(STATUS_OBJECT_PATH_NOT_FOUND);
-pub const ALREADY_EXISTS : Error = Error(STATUS_OBJECT_NAME_COLLISION);
-pub const ACCESS_DENIED : Error = Error(STATUS_ACCESS_DENIED);
-
+pub const OBJECT_NOT_FOUND: Error = Error(STATUS_OBJECT_NAME_NOT_FOUND);
+pub const PATH_NOT_FOUND: Error = Error(STATUS_OBJECT_PATH_NOT_FOUND);
+pub const ALREADY_EXISTS: Error = Error(STATUS_OBJECT_NAME_COLLISION);
+pub const ACCESS_DENIED: Error = Error(STATUS_ACCESS_DENIED);
 
 impl From<NTSTATUS> for crate::Error {
     fn from(status: NTSTATUS) -> Self {
@@ -37,7 +37,7 @@ impl core::fmt::Debug for Error {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         match nt_status_to_string(self.0 as u32) {
             Some(s) => write!(f, "NTSTATUS 0x{:X}, {}", &self.0, s),
-            None => write!(f, "NTSTATUS 0x{:X}", &self.0)
+            None => write!(f, "NTSTATUS 0x{:X}", &self.0),
         }
     }
 }
@@ -64,11 +64,12 @@ impl From<Error> for std::io::Error {
 #[cfg(feature = "std")]
 pub fn nt_status_to_string(code: u32) -> Option<std::string::String> {
     use core::ptr;
-    use winapi::shared::ntdef::{CHAR, LPSTR, PVOID};
     use winapi::shared::minwindef::HLOCAL;
+    use winapi::shared::ntdef::{CHAR, LPSTR, PVOID};
     use winapi::um::libloaderapi::GetModuleHandleA;
     use winapi::um::winbase::{
-        FormatMessageA, LocalFree, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_HMODULE, FORMAT_MESSAGE_IGNORE_INSERTS,
+        FormatMessageA, LocalFree, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_HMODULE,
+        FORMAT_MESSAGE_IGNORE_INSERTS,
     };
 
     unsafe {
@@ -110,19 +111,19 @@ pub fn nt_status_to_string(code: u32) -> Option<std::string::String> {
 mod tests {
     use super::*;
     use std::io::{Error as IoError, ErrorKind};
-    
+
     #[test]
     fn error_mapping() {
-        let err : IoError = ALREADY_EXISTS.into();
+        let err: IoError = ALREADY_EXISTS.into();
         assert_eq!(err.kind(), ErrorKind::AlreadyExists);
 
-        let err : IoError = PATH_NOT_FOUND.into();
+        let err: IoError = PATH_NOT_FOUND.into();
         assert_eq!(err.kind(), ErrorKind::NotFound);
 
-        let err : IoError = OBJECT_NOT_FOUND.into();
+        let err: IoError = OBJECT_NOT_FOUND.into();
         assert_eq!(err.kind(), ErrorKind::NotFound);
 
-        let err : IoError = ACCESS_DENIED.into();
+        let err: IoError = ACCESS_DENIED.into();
         assert_eq!(err.kind(), ErrorKind::PermissionDenied);
     }
 }

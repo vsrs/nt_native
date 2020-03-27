@@ -2,12 +2,12 @@ use core::{mem, ptr};
 
 use ntapi::ntioapi::*;
 use ntapi::ntobapi::*;
+use winapi::shared::minwindef::MAX_PATH;
 use winapi::shared::ntdef::{
     InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
     PVOID, ULONG,
 };
 use winapi::shared::ntstatus::STATUS_PENDING;
-use winapi::shared::minwindef::MAX_PATH;
 
 use crate::{Access, NtString, NullSafeMutPtr, NullSafePtr, Result};
 
@@ -104,14 +104,14 @@ impl Handle {
     pub fn access_mask(&self) -> Result<Access> {
         unsafe {
             let info = self.query_info::<FILE_ACCESS_INFORMATION>(FileAccessInformation)?;
-            Ok( Access::from_bits_unchecked(info.AccessFlags) )
+            Ok(Access::from_bits_unchecked(info.AccessFlags))
         }
     }
 
     pub fn alignment(&self) -> Result<usize> {
         unsafe {
             let info = self.query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
-            Ok( info.AlignmentRequirement as usize )
+            Ok(info.AlignmentRequirement as usize)
         }
     }
 
@@ -120,7 +120,7 @@ impl Handle {
     ///
     /// If the ObjectAttributes->RootDirectory handle was opened by file ID, `path_name()` returns the relative path.
     /// If only the relative path is returned, the file name string will not begin with a backslash.
-    /// 
+    ///
     /// See also: object_name()
     pub fn path_name(&self) -> Result<NtString> {
         #[repr(C)]
@@ -140,14 +140,23 @@ impl Handle {
     pub fn object_name(&self) -> Result<NtString> {
         unsafe {
             let info_size = mem::size_of::<OBJECT_NAME_INFORMATION>();
-            let buffer_size =  info_size + MAX_PATH * 2;
+            let buffer_size = info_size + MAX_PATH * 2;
             let mut buffer = Vec::<u8>::with_capacity(buffer_size);
             buffer.set_len(buffer_size);
-            let mut return_len : ULONG = 0;
-            let status = NtQueryObject(self.0, ObjectNameInformation, buffer.as_mut_ptr() as PVOID, buffer_size as ULONG, &mut return_len);
+            let mut return_len: ULONG = 0;
+            let status = NtQueryObject(
+                self.0,
+                ObjectNameInformation,
+                buffer.as_mut_ptr() as PVOID,
+                buffer_size as ULONG,
+                &mut return_len,
+            );
             nt_result!(status, {
                 let info = &*(buffer.as_ptr() as *const OBJECT_NAME_INFORMATION);
-                let name_slice = core::slice::from_raw_parts(info.Name.Buffer as *const u16, info.Name.Length as usize / mem::size_of::<u16>());
+                let name_slice = core::slice::from_raw_parts(
+                    info.Name.Buffer as *const u16,
+                    info.Name.Length as usize / mem::size_of::<u16>(),
+                );
                 NtString::from(name_slice)
             })
         }
@@ -300,10 +309,10 @@ impl Handle {
             SeekFrom::End(e) => (self.size()? as i64, e),
             SeekFrom::Current(c) => (self.pos()? as i64, c),
         };
-        
+
         pos += offset;
         unsafe {
-            let mut info : FILE_POSITION_INFORMATION = mem::zeroed();
+            let mut info: FILE_POSITION_INFORMATION = mem::zeroed();
             *info.CurrentByteOffset.QuadPart_mut() = pos;
 
             self.set_info(FilePositionInformation, &info)?;
@@ -316,8 +325,8 @@ impl Handle {
 #[cfg(feature = "std")]
 mod std_impl {
     use super::*;
-    use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
     use std::io;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 
     impl FromRawHandle for Handle {
         unsafe fn from_raw_handle(handle: RawHandle) -> Self {
@@ -370,7 +379,7 @@ mod std_impl {
 
         // Tracking issue for Seek::{stream_len, stream_position} (feature `seek_convenience`)
         // https://github.com/rust-lang/rust/issues/59359
-        // 
+        //
         // fn stream_len(&mut self) -> io::Result<u64> {
         //     self.size().map_err(Into::into)
         // }
@@ -379,7 +388,6 @@ mod std_impl {
         //     self.pos().map_err(Into::into)
         // }
     }
-
 }
 
 #[cfg(feature = "std")]

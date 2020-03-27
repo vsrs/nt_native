@@ -57,15 +57,15 @@ pub use error::Error;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-trait NullSafePtr<T:Sized> {
+trait NullSafePtr<T: Sized> {
     fn safe_ptr(&self) -> *const T;
 }
 
-trait NullSafeMutPtr<T:Sized> {
+trait NullSafeMutPtr<T: Sized> {
     fn safe_mut_ptr(&mut self) -> *mut T;
 }
 
-impl<T:Sized> NullSafePtr<T> for &[T] {
+impl<T: Sized> NullSafePtr<T> for &[T] {
     fn safe_ptr(&self) -> *const T {
         if self.is_empty() {
             core::ptr::null()
@@ -75,7 +75,7 @@ impl<T:Sized> NullSafePtr<T> for &[T] {
     }
 }
 
-impl<T:Sized> NullSafeMutPtr<T> for &mut [T] {
+impl<T: Sized> NullSafeMutPtr<T> for &mut [T] {
     fn safe_mut_ptr(&mut self) -> *mut T {
         if self.is_empty() {
             core::ptr::null_mut()
@@ -85,7 +85,7 @@ impl<T:Sized> NullSafeMutPtr<T> for &mut [T] {
     }
 }
 
-impl<T:Sized> NullSafePtr<T> for std::vec::Vec<T> {
+impl<T: Sized> NullSafePtr<T> for std::vec::Vec<T> {
     fn safe_ptr(&self) -> *const T {
         self.as_slice().safe_ptr()
     }

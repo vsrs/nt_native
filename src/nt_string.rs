@@ -1,9 +1,7 @@
 use crate::{NullSafePtr, Result};
-use ntapi::ntrtl::{
-    RtlDosPathNameToNtPathName_U_WithStatus, RtlFreeUnicodeString, 
-};
+use ntapi::ntrtl::{RtlDosPathNameToNtPathName_U_WithStatus, RtlFreeUnicodeString};
 use winapi::shared::ntdef::{PWSTR, UNICODE_STRING};
-use winapi::shared::ntstatus::{STATUS_SUCCESS};
+use winapi::shared::ntstatus::STATUS_SUCCESS;
 
 #[macro_export]
 macro_rules! nt_str {
@@ -120,7 +118,7 @@ pub fn dos_name_to_nt(dos_name: &NtString) -> Result<(NtString, bool)> {
         let mut raw = core::mem::MaybeUninit::<UNICODE_STRING>::uninit();
         let mut temp: Vec<u16>;
         let dos_name = match dos_name.last() {
-            None | Some(0) => &dos_name.0, 
+            None | Some(0) => &dos_name.0,
             _ => {
                 // not null-terminated
                 temp = dos_name.0.clone();
@@ -129,16 +127,22 @@ pub fn dos_name_to_nt(dos_name: &NtString) -> Result<(NtString, bool)> {
             }
         };
 
-        let status =
-            RtlDosPathNameToNtPathName_U_WithStatus(dos_name.as_ptr() as PWSTR, raw.as_mut_ptr(), &mut file_part, core::ptr::null_mut());
+        let status = RtlDosPathNameToNtPathName_U_WithStatus(
+            dos_name.as_ptr() as PWSTR,
+            raw.as_mut_ptr(),
+            &mut file_part,
+            core::ptr::null_mut(),
+        );
         if status != STATUS_SUCCESS {
             return Err(crate::Error::from(status));
         }
         raw.assume_init()
     };
-    let utf16_slice = unsafe{ core::slice::from_raw_parts(data.Buffer, (data.Length / 2) as usize)};
+    let utf16_slice = unsafe { core::slice::from_raw_parts(data.Buffer, (data.Length / 2) as usize) };
     let nt_name = NtString(utf16_slice.to_vec());
-    unsafe{ RtlFreeUnicodeString(&mut data); }
+    unsafe {
+        RtlFreeUnicodeString(&mut data);
+    }
 
     Ok((nt_name, file_part.is_null()))
 }
@@ -184,7 +188,10 @@ mod tests {
         let prefix = build_prefix();
         let res1 = dos_name_to_nt(nt_str_ref!("some/path/with/dir.name/file.name")).unwrap();
 
-        assert_eq!(format!("{}some\\path\\with\\dir.name\\file.name", prefix), res1.0.to_string());
+        assert_eq!(
+            format!("{}some\\path\\with\\dir.name\\file.name", prefix),
+            res1.0.to_string()
+        );
         assert_eq!(false, res1.1);
     }
 
