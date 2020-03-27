@@ -321,15 +321,13 @@ impl NewHandle {
         let (nt_name, is_dir) = super::dos_name_to_nt(dos_name)?;
         if !self.options.contains(Options::DIRECTORY) && !self.options.contains(Options::NON_DIRECTORY) {
             // autodetect only if not set manually
-            match is_dir {
-                true => {
-                    self.options.remove(Options::NON_DIRECTORY);
-                    self.options |= Options::DIRECTORY;
-                }
-                false => {
-                    self.options.remove(Options::DIRECTORY);
-                    self.options |= Options::NON_DIRECTORY;
-                }
+            if is_dir {
+                self.options.remove(Options::NON_DIRECTORY);
+                self.options |= Options::DIRECTORY;
+            }
+            else {
+                self.options.remove(Options::DIRECTORY);
+                self.options |= Options::NON_DIRECTORY;
             }
         }
 

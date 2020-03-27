@@ -152,6 +152,7 @@ impl Handle {
                 &mut return_len,
             );
             nt_result!(status, {
+                #[allow(clippy::cast_ptr_alignment)]
                 let info = &*(buffer.as_ptr() as *const OBJECT_NAME_INFORMATION);
                 let name_slice = core::slice::from_raw_parts(
                     info.Name.Buffer as *const u16,

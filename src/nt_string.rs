@@ -33,6 +33,7 @@ impl NtString {
         Self(Vec::new())
     }
 
+    #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> std::string::String {
         std::string::String::from_utf16_lossy(self)
     }
@@ -45,6 +46,10 @@ impl NtString {
             MaximumLength: len,
         }
     }
+}
+
+impl Default for NtString {
+    fn default() -> Self { Self::new() }
 }
 
 pub(crate) trait AsUnicodeString {
