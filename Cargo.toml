@@ -11,3 +11,14 @@ repository = "https://github.com/vsrs/nt_native.git"
 description = "Windows Native subsystem bindings for the Rust programming language."
 
 [dependencies]
+cfg-if = "0.1.10"
+winapi = { version = "0.3" }
+ntapi = { version = "0.3.3" }
+bitflags = "1.0"
+wstr = "0.2"
+
+[features]
+default = ["std"]
+kernel = ["ntapi/kernel"]
+user = ["ntapi/user", "winapi/libloaderapi", "winapi/winbase"]
+std = ["user"]

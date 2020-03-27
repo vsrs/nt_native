@@ -1,0 +1,51 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Unittests",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-76153c19821b1a60.exe",
+            "args": ["--test-threads=1", "--nocapture"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {"name": "RUST_BACKTRACE", "value": "1"},
+             ],
+            "externalConsole": false,
+            "preLaunchTask": "${defaultBuildTask}",
+            "internalConsoleOptions": "openOnSessionStart",
+            "logging": {
+                "moduleLoad": false,
+            },
+            "sourceFileMap": {
+                "/rustc/f3e1a954d2ead4e2fc197c7da7d71e6c61bad196": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+              },
+        },
+        {
+            "name": "File io tests",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target\\debug\\deps\\file_io-bd99eb4b28a3c1b8.exe",
+            "args": ["--test-threads=1", "--nocapture"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {"name": "RUST_BACKTRACE", "value": "1"},
+                {"name": "NT_NATIVE_TEST_DIR", "value": "${workspaceFolder}/../temp/"},
+             ],
+            "externalConsole": false,
+            "preLaunchTask": "${defaultBuildTask}",
+            "internalConsoleOptions": "openOnSessionStart",
+            "logging": {
+                "moduleLoad": false,
+            },
+            "sourceFileMap": {
+                "/rustc/f3e1a954d2ead4e2fc197c7da7d71e6c61bad196": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+              },
+        }
+    ]
+}
