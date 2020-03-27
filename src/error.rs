@@ -1,5 +1,5 @@
 use winapi::shared::ntdef::NTSTATUS;
-use winapi::shared::ntstatus::{STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_OBJECT_NAME_COLLISION};
+use winapi::shared::ntstatus::{STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_OBJECT_NAME_COLLISION, STATUS_ACCESS_DENIED};
 
 
 #[derive(Eq, PartialEq)]
@@ -11,6 +11,8 @@ unsafe impl Send for Error {}
 pub const OBJECT_NOT_FOUND : Error = Error(STATUS_OBJECT_NAME_NOT_FOUND);
 pub const PATH_NOT_FOUND : Error = Error(STATUS_OBJECT_PATH_NOT_FOUND);
 pub const ALREADY_EXISTS : Error = Error(STATUS_OBJECT_NAME_COLLISION);
+pub const ACCESS_DENIED : Error = Error(STATUS_ACCESS_DENIED);
+
 
 impl From<NTSTATUS> for crate::Error {
     fn from(status: NTSTATUS) -> Self {
@@ -50,7 +52,12 @@ impl std::error::Error for Error {
 #[cfg(feature = "std")]
 impl From<Error> for std::io::Error {
     fn from(e: Error) -> Self {
-        Self::new(std::io::ErrorKind::Other, e)
+        match &e {
+            &PATH_NOT_FOUND | &OBJECT_NOT_FOUND => Self::new(std::io::ErrorKind::NotFound, e),
+            &ALREADY_EXISTS => Self::new(std::io::ErrorKind::AlreadyExists, e),
+            &ACCESS_DENIED => Self::new(std::io::ErrorKind::PermissionDenied, e),
+            _ => Self::new(std::io::ErrorKind::Other, e),
+        }
     }
 }
 
@@ -96,5 +103,26 @@ pub fn nt_status_to_string(code: u32) -> Option<std::string::String> {
         LocalFree(buffer as HLOCAL);
 
         Some(result.replace("\r\n", " "))
+    }
+}
+
+#[cfg(all(feature = "std", test))]
+mod tests {
+    use super::*;
+    use std::io::{Error as IoError, ErrorKind};
+    
+    #[test]
+    fn error_mapping() {
+        let err : IoError = ALREADY_EXISTS.into();
+        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+
+        let err : IoError = PATH_NOT_FOUND.into();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        let err : IoError = OBJECT_NOT_FOUND.into();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        let err : IoError = ACCESS_DENIED.into();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
     }
 }
