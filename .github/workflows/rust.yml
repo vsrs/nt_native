@@ -16,4 +16,8 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Run tests
+      env:
+        NT_NATIVE_TEST_DIR: .
       run: cargo test --verbose
+      
+        
