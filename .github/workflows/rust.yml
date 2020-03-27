@@ -18,6 +18,5 @@ jobs:
     - name: Run tests
       env:
         NT_NATIVE_TEST_DIR: .
-      run: cargo test --verbose
-      
-        
+      run: cargo test --verbose -- --nocapture
+
