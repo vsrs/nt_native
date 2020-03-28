@@ -4,7 +4,7 @@ use ntapi::ntioapi::*;
 use ntapi::ntobapi::*;
 use winapi::shared::minwindef::MAX_PATH;
 use winapi::shared::ntdef::{
-    InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
+    InitializeObjectAttributes, TRUE, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
     PVOID, ULONG,
 };
 use winapi::shared::ntstatus::STATUS_PENDING;
@@ -109,10 +109,34 @@ impl Handle {
         }
     }
 
+    /// Returns the buffer alignment required by the underlying device. 
+    /// 
+    /// See [FILE_ALIGNMENT_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_alignment_information)
     pub fn alignment(&self) -> Result<usize> {
         unsafe {
             let info = self.query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
             Ok(info.AlignmentRequirement as usize)
+        }
+    }
+
+    /// Returns the access mode of a file.  
+    /// This flags are is only a subset of all possible Options flags!
+    /// 
+    /// See [FILE_MODE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_mode_information)
+    pub fn mode(&self) -> Result<Options> {
+        unsafe {
+            let info = self.query_info::<FILE_MODE_INFORMATION>(FileModeInformation)?;
+            Ok( Options::from_bits_unchecked(info.Mode) )
+        }
+    }
+
+    /// Returns whether the file system that contains the file is a remote file system.
+    /// 
+    /// See [FILE_IS_REMOTE_DEVICE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_is_remote_device_information)
+    pub fn is_remote(&self) -> Result<bool> {
+        unsafe {
+            let info = self.query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
+            Ok( info.IsRemote == TRUE )
         }
     }
 
@@ -122,7 +146,7 @@ impl Handle {
     /// If the ObjectAttributes->RootDirectory handle was opened by file ID, `path_name()` returns the relative path.
     /// If only the relative path is returned, the file name string will not begin with a backslash.
     ///
-    /// See also: object_name()
+    /// See [FILE_NAME_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_name_information)
     pub fn path_name(&self) -> Result<NtString> {
         #[repr(C)]
         struct FileNameInfoWithBuffer {
@@ -137,7 +161,9 @@ impl Handle {
     }
 
     /// Returns full object name.
-    /// For files it would be something like `\Device\HarddiskVolumeN\RootDir\Dir\file.ext'
+    /// For files it would be something like `\Device\HarddiskVolume3\RootDir\Dir\file.ext`
+    /// 
+    /// Warning: this call uses well-known, but **Undocumented** structure!
     pub fn object_name(&self) -> Result<NtString> {
         unsafe {
             let info_size = mem::size_of::<OBJECT_NAME_INFORMATION>();
@@ -155,11 +181,7 @@ impl Handle {
             nt_result!(status, {
                 #[allow(clippy::cast_ptr_alignment)]
                 let info = &*(buffer.as_ptr() as *const OBJECT_NAME_INFORMATION);
-                let name_slice = core::slice::from_raw_parts(
-                    info.Name.Buffer as *const u16,
-                    info.Name.Length as usize / mem::size_of::<u16>(),
-                );
-                NtString::from(name_slice)
+                NtString::from(&info.Name)
             })
         }
     }
@@ -192,7 +214,7 @@ impl Handle {
 
 // raw information
 impl Handle {
-    pub unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
+    pub(crate) unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
         let mut info: T = mem::zeroed();
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
 
@@ -207,7 +229,7 @@ impl Handle {
         nt_result!(status, info)
     }
 
-    pub unsafe fn set_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
+    pub(crate) unsafe fn set_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
 
         let status = NtSetInformationFile(
