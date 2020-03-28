@@ -324,8 +324,7 @@ impl NewHandle {
             if is_dir {
                 self.options.remove(Options::NON_DIRECTORY);
                 self.options |= Options::DIRECTORY;
-            }
-            else {
+            } else {
                 self.options.remove(Options::DIRECTORY);
                 self.options |= Options::NON_DIRECTORY;
             }
