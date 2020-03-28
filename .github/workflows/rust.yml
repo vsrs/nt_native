@@ -17,11 +17,18 @@ jobs:
       uses: actions-rs/cargo@v1.0.1
       with:
         command: build
-        args: --features "user" --no-default-features
+        args: --verbose --features "user" --no-default-features
+
     - name: Build
-      run: cargo build --verbose
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        command: build
+        args: --verbose
+
     - name: Run tests
       env:
         NT_NATIVE_TEST_DIR: .
-      run: cargo test --verbose -- --nocapture
-
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        command: test
+        args: --verbose -- --nocapture
