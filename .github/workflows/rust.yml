@@ -13,8 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build no_std
-      run: cargo build --features "user" --no-default-features
+    - uses: actions-rs/cargo@v1
+      command: build
+      args: --features "user" --no-default-features      
     - name: Build
       run: cargo build --verbose
     - name: Run tests
