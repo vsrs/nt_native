@@ -28,6 +28,12 @@ impl core::ops::Deref for NtString {
     }
 }
 
+impl core::ops::DerefMut for NtString {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl NtString {
     pub fn new() -> Self {
         Self(Vec::new())
@@ -35,7 +41,7 @@ impl NtString {
 
     #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> std::string::String {
-        std::string::String::from_utf16_lossy(self)
+        std::string::String::from_utf16_lossy(&self.0)
     }
 
     pub(crate) unsafe fn as_unicode_string(&self) -> UNICODE_STRING {
@@ -49,7 +55,9 @@ impl NtString {
 }
 
 impl Default for NtString {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub(crate) trait AsUnicodeString {
@@ -104,6 +112,14 @@ impl From<&String> for NtString {
     }
 }
 
+impl From<&UNICODE_STRING> for NtString {
+    fn from(data: &UNICODE_STRING) -> Self {
+        let utf16_slice =
+            unsafe { core::slice::from_raw_parts(data.Buffer, data.Length as usize / core::mem::size_of::<u16>()) };
+        Self::from(utf16_slice)
+    }
+}
+
 /// Converts DOS names to NT native format  
 ///
 ///  `name` A constant string containing the DOS name of the target file or directory. Should be null-terminated!
@@ -123,7 +139,7 @@ pub fn dos_name_to_nt(dos_name: &NtString) -> Result<(NtString, bool)> {
         let mut raw = core::mem::MaybeUninit::<UNICODE_STRING>::uninit();
         let mut temp: Vec<u16>;
         let dos_name = match dos_name.last() {
-            None | Some(0) => &dos_name.0,
+            Some(0) => &dos_name.0,
             _ => {
                 // not null-terminated
                 temp = dos_name.0.clone();
@@ -143,8 +159,7 @@ pub fn dos_name_to_nt(dos_name: &NtString) -> Result<(NtString, bool)> {
         }
         raw.assume_init()
     };
-    let utf16_slice = unsafe { core::slice::from_raw_parts(data.Buffer, (data.Length / 2) as usize) };
-    let nt_name = NtString(utf16_slice.to_vec());
+    let nt_name = NtString::from(&data);
     unsafe {
         RtlFreeUnicodeString(&mut data);
     }
@@ -209,6 +224,12 @@ mod tests {
         let res2 = dos_name_to_nt(nt_str_ref!("\\??\\x:/some/path/dir.name/")).unwrap();
         assert_eq!("\\??\\x:/some/path/dir.name/", res2.0.to_string());
         assert_eq!(false, res2.1); // but it is folder
+    }
+
+    #[test]
+    fn dos_name_empty() {
+        let err = dos_name_to_nt(nt_str_ref!("")).unwrap_err();
+        assert_eq!(err.ntstatus(), winapi::shared::ntstatus::STATUS_OBJECT_NAME_INVALID);
     }
 
     #[test]
