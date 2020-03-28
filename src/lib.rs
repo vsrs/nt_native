@@ -23,6 +23,9 @@ pub use wstr::{wstr, wstr_impl}; // Just the macros needed.
 #[cfg(not(feature = "std"))]
 extern crate alloc as std;
 
+pub(crate) use std::vec::Vec;
+pub(crate) use std::string::String;
+
 #[macro_export]
 macro_rules! nt_result {
     ($status:ident, $value:expr ) => {

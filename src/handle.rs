@@ -9,7 +9,7 @@ use winapi::shared::ntdef::{
 };
 use winapi::shared::ntstatus::STATUS_PENDING;
 
-use crate::{Access, NtString, NullSafeMutPtr, NullSafePtr, Result};
+use crate::*;
 
 pub enum SeekFrom {
     Start(u64),
@@ -23,7 +23,8 @@ impl From<u64> for SeekFrom {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
+#[cfg_attr(any(feature = "std", test), derive(Debug))]
 pub struct Handle(HANDLE);
 
 unsafe impl Sync for Handle {}
