@@ -89,7 +89,7 @@ mod std_tests {
             .build(&nt_path)
             .unwrap();
             assert_eq!(already_exists, false);
-            
+
             let n = handle.path_name().unwrap();
             println!("File path name: {}", n.to_string());
 

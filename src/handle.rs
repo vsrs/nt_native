@@ -62,7 +62,7 @@ impl Drop for Handle {
 impl Read for Handle {
     fn read(&self, buffer: &mut [u8]) -> Result<usize> {
         self.read_impl(buffer, None)
-     }
+    }
 }
 
 impl ReadAt for Handle {
@@ -118,7 +118,6 @@ impl Handle {
             Ok(())
         }
     }
-
 
     pub fn pos(&self) -> Result<u64> {
         unsafe {
