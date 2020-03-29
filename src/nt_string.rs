@@ -1,4 +1,4 @@
-use crate::{NullSafePtr, Result};
+use crate::*;
 use ntapi::ntrtl::{RtlDosPathNameToNtPathName_U_WithStatus, RtlFreeUnicodeString};
 use winapi::shared::ntdef::{PWSTR, UNICODE_STRING};
 use winapi::shared::ntstatus::STATUS_SUCCESS;

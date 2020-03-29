@@ -1,5 +1,4 @@
-use nt_native::*;
-use std::io::prelude::*;
+use nt_native::{NewHandle, NtString};
 
 #[cfg(all(test, feature = "std"))]
 mod std_tests {
@@ -17,6 +16,8 @@ mod std_tests {
     #[test]
     fn builder_file() {
         if let Some(dir) = test_dir() {
+            use nt_native::*;
+
             let new_file_name = format!("{}\\new_file.data", dir);
             // preliminary cleanup
             let _ = std::fs::remove_file(&new_file_name);
@@ -106,6 +107,8 @@ mod std_tests {
             let nt_path: NtString = NtString::from(&file_name);
             let (mut handle, _) = NewHandle::open_or_create(&nt_path).unwrap();
             std_test(&mut handle).unwrap();
+
+            use std::io::prelude::*;
 
             fn std_test<R: Read + Write + Seek>(file: &mut R) -> std::io::Result<()> {
                 file.write_all(b"qwerty")?;
