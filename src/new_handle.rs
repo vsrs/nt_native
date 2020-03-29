@@ -10,7 +10,7 @@ use ntapi::ntioapi::{
 };
 use ntapi::ntobapi::OBJ_INHERIT;
 use winapi::shared::ntdef::{
-    InitializeObjectAttributes, HANDLE, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE,
+    InitializeObjectAttributes, HANDLE, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE,
     OBJ_FORCE_ACCESS_CHECK, OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF, OBJ_OPENLINK,
     OBJ_PERMANENT, OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER, PVOID,
 };
@@ -284,8 +284,27 @@ impl NewHandle {
             self.access |= Access::DELETE;
         }
 
-        let mut oa = self.init_oa(nt_name);
+        let root: HANDLE = match &self.root {
+            None => core::ptr::null_mut(),
+            Some(r) => r.as_raw(),
+        };
+
+        let security_descriptor: PSECURITY_DESCRIPTOR = match &self.security_descriptor {
+            None => core::ptr::null_mut(),
+            Some(sd) => &sd.0 as *const _ as PSECURITY_DESCRIPTOR,
+        };
+
         unsafe {
+            let mut oa = mem::zeroed();
+            let mut unicode_str = nt_name.as_unicode_string();
+            InitializeObjectAttributes(
+                &mut oa,
+                &mut unicode_str,
+                self.attributes.bits,
+                root,
+                security_descriptor,
+            );
+
             let mut raw: HANDLE = mem::zeroed();
             let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
             let status = NtCreateFile(
@@ -331,32 +350,6 @@ impl NewHandle {
         }
 
         Ok((nt_name, self))
-    }
-
-    fn init_oa(&self, nt_name: &NtString) -> OBJECT_ATTRIBUTES {
-        let root: HANDLE = match &self.root {
-            None => core::ptr::null_mut(),
-            Some(r) => r.as_raw(),
-        };
-
-        let security_descriptor: PSECURITY_DESCRIPTOR = match &self.security_descriptor {
-            None => core::ptr::null_mut(),
-            Some(sd) => &sd.0 as *const _ as PSECURITY_DESCRIPTOR,
-        };
-
-        unsafe {
-            let mut oa = mem::MaybeUninit::<OBJECT_ATTRIBUTES>::uninit();
-            let mut unicode_str = nt_name.as_unicode_string();
-            InitializeObjectAttributes(
-                oa.as_mut_ptr(),
-                &mut unicode_str,
-                self.attributes.bits,
-                root,
-                security_descriptor,
-            );
-
-            oa.assume_init()
-        }
     }
 
     unsafe fn allocation_size_ptr(&self) -> PLARGE_INTEGER {

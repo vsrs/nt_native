@@ -32,3 +32,11 @@ jobs:
       with:
         command: test
         args: --verbose -- --nocapture
+
+    - name: Run tests in release mode
+      env:
+        NT_NATIVE_TEST_DIR: .
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        command: test
+        args: --release --verbose -- --nocapture
