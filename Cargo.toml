@@ -22,3 +22,6 @@ default = ["std"]
 kernel = ["ntapi/kernel"]
 user = ["ntapi/user", "winapi/libloaderapi", "winapi/winbase"]
 std = ["user"]
+
+[profile.release]
+debug = true

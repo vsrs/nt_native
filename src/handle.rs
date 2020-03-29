@@ -282,19 +282,6 @@ impl Handle {
     }
 }
 
-macro_rules! offset_from_pos {
-    ($offset:ident, $pos:ident) => {{
-        let mut $offset: LARGE_INTEGER = mem::zeroed();
-        match $pos {
-            Some(p) => {
-                *$offset.QuadPart_mut() = p as i64;
-                &mut $offset as PLARGE_INTEGER
-            }
-            None => ptr::null_mut(),
-        }
-    }};
-}
-
 // internals
 impl Handle {
     #[inline]
@@ -311,7 +298,15 @@ impl Handle {
 
     fn write_impl(&self, data: &[u8], pos: Option<u64>) -> Result<usize> {
         unsafe {
-            let offset_ptr = offset_from_pos!(offset, pos);
+            let mut offset: LARGE_INTEGER = mem::zeroed();
+            let offset_ptr = match pos {
+                Some(p) => {
+                    *offset.QuadPart_mut() = p as i64;
+                    &mut offset as PLARGE_INTEGER
+                }
+                None => ptr::null_mut(),
+            };
+
             let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
             let buffer_len = data.len() as ULONG;
             let buffer_ptr = data.safe_ptr() as PVOID;
@@ -335,7 +330,15 @@ impl Handle {
 
     fn read_impl(&self, mut buffer: &mut [u8], pos: Option<u64>) -> Result<usize> {
         unsafe {
-            let offset_ptr = offset_from_pos!(offset, pos);
+            let mut offset: LARGE_INTEGER = mem::zeroed();
+            let offset_ptr = match pos {
+                Some(p) => {
+                    *offset.QuadPart_mut() = p as i64;
+                    &mut offset as PLARGE_INTEGER
+                }
+                None => ptr::null_mut(),
+            };
+    
             let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
             let buffer_len = buffer.len() as ULONG;
             let buffer_ptr = buffer.safe_mut_ptr() as PVOID;

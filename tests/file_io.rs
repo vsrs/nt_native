@@ -36,10 +36,10 @@ mod std_tests {
             assert_eq!(written, 8);
 
             let mut buffer = vec![0_u8; 3];
+            assert_eq!(handle.size().unwrap(), 8);
             let readed = handle.read_at(1, &mut buffer).unwrap();
             assert_eq!(readed, 3);
             assert_eq!(buffer, b"234");
-            assert_eq!(handle.size().unwrap(), 8);
             drop(handle);
 
             // now the file exists, the same call should fail
