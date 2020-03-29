@@ -23,6 +23,29 @@ impl From<u64> for SeekFrom {
     }
 }
 
+pub trait Read {
+    fn read(&self, buffer: &mut [u8]) -> Result<usize>;
+}
+
+pub trait ReadAt {
+    fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize>;
+}
+
+pub trait Write {
+    fn write(&self, data: &[u8]) -> Result<usize>;
+    fn flush(&self) -> Result<()>;
+}
+
+pub trait WriteAt {
+    fn write_at(&self, offset: u64, data: &[u8]) -> Result<usize>;
+}
+
+pub trait Seek {
+    fn seek(&self, to: SeekFrom) -> Result<u64>;
+    fn stream_position(&self) -> Result<u64>;
+    fn stream_len(&self) -> Result<u64>;
+}
+
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
 pub struct Handle(HANDLE);
@@ -33,6 +56,45 @@ unsafe impl Send for Handle {}
 impl Drop for Handle {
     fn drop(&mut self) {
         let _res = self.close();
+    }
+}
+
+impl Read for Handle {
+    fn read(&self, buffer: &mut [u8]) -> Result<usize> {
+        self.read_impl(buffer, None)
+     }
+}
+
+impl ReadAt for Handle {
+    fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize> {
+        self.read_impl(buffer, Some(offset))
+    }
+}
+
+impl Write for Handle {
+    fn write(&self, data: &[u8]) -> Result<usize> {
+        self.write_impl(data, None)
+    }
+    fn flush(&self) -> Result<()> {
+        self.flush_impl()
+    }
+}
+
+impl WriteAt for Handle {
+    fn write_at(&self, offset: u64, data: &[u8]) -> Result<usize> {
+        self.write_impl(data, Some(offset))
+    }
+}
+
+impl Seek for Handle {
+    fn seek(&self, to: SeekFrom) -> Result<u64> {
+        self.seek_impl(to)
+    }
+    fn stream_position(&self) -> Result<u64> {
+        self.pos()
+    }
+    fn stream_len(&self) -> Result<u64> {
+        self.size()
     }
 }
 
@@ -57,29 +119,6 @@ impl Handle {
         }
     }
 
-    pub fn write(&self, data: &[u8]) -> Result<usize> {
-        self.write_impl(data, None)
-    }
-
-    pub fn read(&self, buffer: &mut [u8]) -> Result<usize> {
-        self.read_impl(buffer, None)
-    }
-
-    pub fn write_at(&self, pos: u64, data: &[u8]) -> Result<usize> {
-        self.write_impl(data, Some(pos))
-    }
-
-    pub fn read_at(&self, pos: u64, buffer: &mut [u8]) -> Result<usize> {
-        self.read_impl(buffer, Some(pos))
-    }
-
-    pub fn flush(&self) -> Result<()> {
-        self.flush_impl()
-    }
-
-    pub fn seek(&self, pos: impl Into<SeekFrom>) -> Result<u64> {
-        self.seek_impl(pos.into())
-    }
 
     pub fn pos(&self) -> Result<u64> {
         unsafe {

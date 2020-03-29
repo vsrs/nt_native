@@ -22,6 +22,8 @@ pub use wstr::{wstr, wstr_impl}; // Just the macros needed.
 
 #[cfg(not(feature = "std"))]
 extern crate alloc as std;
+pub(crate) use std::vec::Vec;
+pub(crate) use std::string::String;
 
 pub(crate) use std::string::String;
 pub(crate) use std::vec::Vec;
