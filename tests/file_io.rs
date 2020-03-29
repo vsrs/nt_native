@@ -109,7 +109,6 @@ mod std_tests {
             std_test(&mut handle).unwrap();
 
             use std::io::prelude::*;
-
             fn std_test<R: Read + Write + Seek>(file: &mut R) -> std::io::Result<()> {
                 file.write_all(b"qwerty")?;
                 let pos = file.seek(std::io::SeekFrom::Current(-5))?;
@@ -118,6 +117,15 @@ mod std_tests {
                 let mut buf = vec![0_u8; 5];
                 file.read_exact(&mut buf)?;
                 assert_eq!(buf, b"werty");
+
+                file.seek(std::io::SeekFrom::Current(0)).unwrap();
+                loop {
+                    match file.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(_) => (),
+                        Err(e) => panic!("Read test error: {}", e)
+                    }
+                }
 
                 Ok(())
             }

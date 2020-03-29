@@ -7,7 +7,7 @@ use winapi::shared::ntdef::{
     InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
     PVOID, TRUE, ULONG,
 };
-use winapi::shared::ntstatus::STATUS_PENDING;
+use winapi::shared::ntstatus::{STATUS_END_OF_FILE, STATUS_PENDING};
 
 use crate::*;
 
@@ -353,7 +353,10 @@ impl Handle {
             );
 
             status = self.wait_for_pending(status, &iosb);
-            nt_result!(status, iosb.Information as usize)
+            match status {
+                STATUS_END_OF_FILE => Ok(0),
+                s =>  nt_result!(s, iosb.Information as usize)
+            }
         }
     }
 
