@@ -48,14 +48,20 @@ macro_rules! nt_result {
 mod nt_string;
 pub use nt_string::*;
 
+pub mod error;
+pub use error::Error;
+
+mod traits;
+pub use traits::*;
+
 mod new_handle;
 pub use new_handle::*;
 
 mod handle;
 pub use handle::*;
 
-pub mod error;
-pub use error::Error;
+mod file;
+pub use file::*;
 
 pub type Result<T> = core::result::Result<T, Error>;
 

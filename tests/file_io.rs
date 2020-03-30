@@ -1,4 +1,4 @@
-use nt_native::{NewHandle, NtString};
+use nt_native::{File, NtString};
 
 #[cfg(all(test, feature = "std"))]
 mod std_tests {
@@ -25,11 +25,11 @@ mod std_tests {
             let nt_path: NtString = NtString::from(&new_file_name);
 
             // file does not exist, open should fail
-            assert_eq!(NewHandle::open(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
-            assert_eq!(NewHandle::open_readonly(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
-            assert_eq!(NewHandle::owerwrite(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
+            assert_eq!(File::open(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
+            assert_eq!(File::open_readonly(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
+            assert_eq!(File::owerwrite(&nt_path).unwrap_err(), error::OBJECT_NOT_FOUND);
 
-            let handle = NewHandle::create_new(&nt_path).unwrap();
+            let handle = File::create_new(&nt_path).unwrap();
             assert_eq!(handle.size().unwrap(), 0);
 
             let written = handle.write(b"12345678").unwrap();
@@ -43,13 +43,13 @@ mod std_tests {
             drop(handle);
 
             // now the file exists, the same call should fail
-            let err = NewHandle::create_new(&nt_path).unwrap_err();
+            let err = File::create_new(&nt_path).unwrap_err();
             assert_eq!(err, error::ALREADY_EXISTS);
             // and open should succeed
-            drop(NewHandle::open(&nt_path).unwrap());
+            drop(File::open(&nt_path).unwrap());
 
             // as well as open_readonly
-            let handle = NewHandle::open_readonly(&nt_path).unwrap();
+            let handle = File::open_readonly(&nt_path).unwrap();
             let pos = handle.seek(SeekFrom::Start(5)).unwrap();
             assert_eq!(pos, 5);
             assert_eq!(pos, handle.pos().unwrap());
@@ -65,19 +65,21 @@ mod std_tests {
             assert_eq!(buffer, b"678");
             drop(handle);
 
-            let handle = NewHandle::owerwrite(&nt_path).unwrap();
+            let handle = File::owerwrite(&nt_path).unwrap();
             drop(handle);
 
-            let (handle, already_exists) = NewHandle::open_or_create(&nt_path).unwrap();
+            let (handle, already_exists) = File::open_or_create(&nt_path).unwrap();
             assert_eq!(already_exists, true);
             drop(handle);
 
             let _ = std::fs::remove_file(&new_file_name);
-            let (handle, already_exists) = NewHandle::open_or_create(&nt_path).unwrap();
+            let (handle, already_exists) = File::open_or_create(&nt_path).unwrap();
             drop(handle);
             assert_eq!(already_exists, false);
 
-            let (handle, already_exists) = NewHandle::owerwrite_or_create(&nt_path).unwrap();
+            let (handle, already_exists) = File::owerwrite_or_create(&nt_path).unwrap();
+            let n = handle.path_name().unwrap();
+            println!("File path name: {}", n.to_string());
             drop(handle);
             assert_eq!(already_exists, true);
 
@@ -89,9 +91,6 @@ mod std_tests {
             .build(&nt_path)
             .unwrap();
             assert_eq!(already_exists, false);
-
-            let n = handle.path_name().unwrap();
-            println!("File path name: {}", n.to_string());
 
             let n = handle.object_name().unwrap();
             println!("Object name: {}", n.to_string());
@@ -105,7 +104,7 @@ mod std_tests {
         if let Some(dir) = test_dir() {
             let file_name = format!("{}\\std_file.data", dir);
             let nt_path: NtString = NtString::from(&file_name);
-            let (mut handle, _) = NewHandle::open_or_create(&nt_path).unwrap();
+            let (mut handle, _) = File::open_or_create(&nt_path).unwrap();
             std_test(&mut handle).unwrap();
 
             use std::io::prelude::*;
