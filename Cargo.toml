@@ -1,6 +1,6 @@
 [package]
 name = "nt_native"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["vsrs <vit@conrlab.com>"]
 edition = "2018"
 readme = "README.md"
@@ -22,6 +22,3 @@ default = ["std"]
 kernel = ["ntapi/kernel"]
 user = ["ntapi/user", "winapi/libloaderapi", "winapi/winbase"]
 std = ["user"]
-
-[profile.release]
-debug = true
