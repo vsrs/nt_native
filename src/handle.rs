@@ -143,7 +143,7 @@ impl Handle {
         status
     }
 
-    pub fn nt_write(&self, data: &[u8], pos: Option<u64>) -> Result<usize> {
+    pub fn write(&self, data: &[u8], pos: Option<u64>) -> Result<usize> {
         unsafe {
             let mut offset: LARGE_INTEGER = mem::zeroed();
             let offset_ptr = match pos {
@@ -175,7 +175,7 @@ impl Handle {
         }
     }
 
-    pub fn nt_read(&self, mut buffer: &mut [u8], pos: Option<u64>) -> Result<usize> {
+    pub fn read(&self, mut buffer: &mut [u8], pos: Option<u64>) -> Result<usize> {
         unsafe {
             let mut offset: LARGE_INTEGER = mem::zeroed();
             let offset_ptr = match pos {
@@ -210,7 +210,7 @@ impl Handle {
         }
     }
 
-    pub fn nt_flush(&self) -> Result<()> {
+    pub fn flush(&self) -> Result<()> {
         unsafe {
             let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
             let status = NtFlushBuffersFile(self.0, &mut iosb);
@@ -218,7 +218,7 @@ impl Handle {
         }
     }
 
-    pub fn nt_seek(&self, pos: u64) -> Result<u64> {
+    pub fn seek(&self, pos: u64) -> Result<u64> {
         unsafe {
             let mut info: FILE_POSITION_INFORMATION = mem::zeroed();
             *info.CurrentByteOffset.QuadPart_mut() = pos as i64;
@@ -266,17 +266,17 @@ mod std_impl {
 
     impl io::Read for Handle {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.nt_read(buf, None).map_err(Into::into)
+            Handle::read(self, buf, None).map_err(Into::into)
         }
     }
 
     impl io::Write for Handle {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.nt_write(buf, None).map_err(Into::into)
+            Handle::write(self, buf, None).map_err(Into::into)
         }
 
         fn flush(&mut self) -> io::Result<()> {
-            self.nt_flush().map_err(Into::into)
+            Handle::flush(self).map_err(Into::into)
         }
     }
 }

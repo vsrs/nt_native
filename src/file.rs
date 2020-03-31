@@ -146,28 +146,28 @@ impl File {
 
 impl Read for File {
     fn read(&self, buffer: &mut [u8]) -> Result<usize> {
-        self.0.nt_read(buffer, None)
+        self.0.read(buffer, None)
     }
 }
 
 impl ReadAt for File {
     fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize> {
-        self.0.nt_read(buffer, Some(offset))
+        self.0.read(buffer, Some(offset))
     }
 }
 
 impl Write for File {
     fn write(&self, data: &[u8]) -> Result<usize> {
-        self.0.nt_write(data, None)
+        self.0.write(data, None)
     }
     fn flush(&self) -> Result<()> {
-        self.0.nt_flush()
+        self.0.flush()
     }
 }
 
 impl WriteAt for File {
     fn write_at(&self, offset: u64, data: &[u8]) -> Result<usize> {
-        self.0.nt_write(data, Some(offset))
+        self.0.write(data, Some(offset))
     }
 }
 
@@ -181,7 +181,7 @@ impl Seek for File {
 
         pos += offset;
 
-        self.0.nt_seek(pos as u64)
+        self.0.seek(pos as u64)
     }
     fn stream_position(&self) -> Result<u64> {
         self.pos()
