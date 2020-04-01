@@ -21,6 +21,13 @@ impl File {
         Ok(Self(handle))
     }
 
+    pub fn create_preallocated(name: &NtString, size: u64) -> Result<Self> {
+        let handle = NewHandle::create_new(name)?;
+        let file = Self(handle);
+        file.set_end_of_file(size)?;
+        Ok(file)
+    }
+
     pub fn open(name: &NtString) -> Result<Self> {
         let handle = NewHandle::open(name)?;
         Ok(Self(handle))
@@ -141,6 +148,14 @@ impl File {
         let name_bytes = &res.name_buffer[..(res.length_in_bytes as usize / mem::size_of::<u16>())];
 
         Ok(NtString::from(name_bytes))
+    }
+
+    pub fn set_end_of_file(&self, end_of_file: u64) -> Result<()> {
+        unsafe {
+            let mut info: FILE_END_OF_FILE_INFORMATION = mem::zeroed();
+            *info.EndOfFile.QuadPart_mut() = end_of_file as i64;
+            self.0.set_info(FileEndOfFileInformation, &info)
+        }
     }
 }
 

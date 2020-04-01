@@ -106,6 +106,7 @@ mod std_tests {
             let nt_path: NtString = NtString::from(&file_name);
             let (mut handle, _) = File::open_or_create(&nt_path).unwrap();
             std_test(&mut handle).unwrap();
+            std::fs::remove_file(file_name).unwrap();
 
             use std::io::prelude::*;
             fn std_test<R: Read + Write + Seek>(file: &mut R) -> std::io::Result<()> {
@@ -128,6 +129,24 @@ mod std_tests {
 
                 Ok(())
             }
+        }
+    }
+
+    #[test]
+    fn preallocated_file() {
+        if let Some(dir) = test_dir() {
+            let file_name = format!("{}\\preallocated.file", dir);
+            let nt_path: NtString = NtString::from(&file_name);
+
+            const SIZE: u64 = 3076;
+            let file = File::create_preallocated(&nt_path, SIZE).unwrap();
+            assert_eq!(file.size().unwrap(), SIZE);
+            drop(file);
+
+            let meta = std::fs::metadata(&file_name).unwrap();
+            assert_eq!(meta.len(), SIZE);
+
+            std::fs::remove_file(file_name).unwrap();
         }
     }
 }

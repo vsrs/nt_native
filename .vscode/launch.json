@@ -29,7 +29,7 @@
             "name": "File io tests",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target\\debug\\deps\\file_io-bd99eb4b28a3c1b8.exe",
+            "program": "${workspaceFolder}/target\\debug\\deps\\file_io-042ddb2b8a6fdbc6.exe",
             "args": ["--test-threads=1", "--nocapture"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
