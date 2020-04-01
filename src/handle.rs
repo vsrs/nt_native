@@ -21,12 +21,17 @@ unsafe impl Send for Handle {}
 impl Drop for Handle {
     fn drop(&mut self) {
         let _res = self.close();
+        debug_assert!(_res.is_ok())
     }
 }
 
 impl Handle {
-    /// Takes ownership of the handle
-    pub(crate) fn new(handle: HANDLE) -> Handle {
+    pub const fn invalid() -> Handle {
+        Handle(0 as HANDLE)
+    }
+
+    /// Takes ownership of the raw OS handle
+    pub const fn new(handle: HANDLE) -> Handle {
         Handle(handle)
     }
 
@@ -185,7 +190,7 @@ impl Handle {
                 }
                 None => ptr::null_mut(),
             };
-    
+
             let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
             let buffer_len = buffer.len() as ULONG;
             let buffer_ptr = buffer.safe_mut_ptr() as PVOID;
@@ -205,7 +210,7 @@ impl Handle {
             status = self.wait_for_pending(status, &iosb);
             match status {
                 STATUS_END_OF_FILE => Ok(0),
-                s =>  nt_result!(s, iosb.Information as usize)
+                s => nt_result!(s, iosb.Information as usize),
             }
         }
     }

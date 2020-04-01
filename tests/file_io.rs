@@ -123,7 +123,7 @@ mod std_tests {
                     match file.read(&mut buf) {
                         Ok(0) => break,
                         Ok(_) => (),
-                        Err(e) => panic!("Read test error: {}", e)
+                        Err(e) => panic!("Read test error: {}", e),
                     }
                 }
 

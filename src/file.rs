@@ -1,8 +1,8 @@
-use ntapi::ntioapi::*;
-use winapi::shared::ntdef::{TRUE, ULONG};
-use winapi::shared::minwindef::MAX_PATH;
-use core::mem;
 use crate::*;
+use core::mem;
+use ntapi::ntioapi::*;
+use winapi::shared::minwindef::MAX_PATH;
+use winapi::shared::ntdef::{TRUE, ULONG};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -51,10 +51,10 @@ impl File {
     pub fn owerwrite_or_create(name: &NtString) -> Result<(Self, bool)> {
         let (handle, already_exists) = NewHandle::owerwrite_or_create(name)?;
         Ok((Self(handle), already_exists))
-    }    
+    }
 }
 
-// inner 
+// inner
 impl File {
     pub fn is_valid(&self) -> bool {
         self.0.is_valid()
@@ -73,21 +73,27 @@ impl File {
 impl File {
     pub fn pos(&self) -> Result<u64> {
         unsafe {
-            let info = self.0.query_info::<FILE_POSITION_INFORMATION>(FilePositionInformation)?;
+            let info = self
+                .0
+                .query_info::<FILE_POSITION_INFORMATION>(FilePositionInformation)?;
             Ok(*info.CurrentByteOffset.QuadPart() as u64)
         }
     }
 
     pub fn size(&self) -> Result<u64> {
         unsafe {
-            let info = self.0.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let info = self
+                .0
+                .query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
             Ok(*info.EndOfFile.QuadPart() as u64)
         }
     }
 
     pub fn size_on_disk(&self) -> Result<u64> {
         unsafe {
-            let info = self.0.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let info = self
+                .0
+                .query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
             Ok(*info.AllocationSize.QuadPart() as u64)
         }
     }
@@ -104,7 +110,9 @@ impl File {
     /// See [FILE_ALIGNMENT_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_alignment_information)
     pub fn alignment(&self) -> Result<usize> {
         unsafe {
-            let info = self.0.query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
+            let info = self
+                .0
+                .query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
             Ok(info.AlignmentRequirement as usize)
         }
     }
@@ -125,7 +133,9 @@ impl File {
     /// See [FILE_IS_REMOTE_DEVICE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_is_remote_device_information)
     pub fn is_remote(&self) -> Result<bool> {
         unsafe {
-            let info = self.0.query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
+            let info = self
+                .0
+                .query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
             Ok(info.IsRemote == TRUE)
         }
     }
@@ -250,14 +260,14 @@ mod std_impl {
         fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
             (self as &dyn crate::Seek).seek(pos.into()).map_err(Into::into)
         }
-    
+
         // Tracking issue for Seek::{stream_len, stream_position} (feature `seek_convenience`)
         // https://github.com/rust-lang/rust/issues/59359
         //
         // fn stream_len(&mut self) -> io::Result<u64> {
         //     self.size().map_err(Into::into)
         // }
-    
+
         // fn stream_position(&mut self) -> io::Result<u64> {
         //     self.pos().map_err(Into::into)
         // }
