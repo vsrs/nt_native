@@ -27,7 +27,7 @@ use winapi::um::winnt::{
     WRITE_OWNER,
 };
 
-use crate::{Handle, NtString, NullSafePtr, Result};
+use crate::{Handle, NtString, NullSafePtr, ToUnicodeString, Result};
 
 bitflags! {
     /// Wrapper around [File Access Rights Constants](https://docs.microsoft.com/en-us/windows/win32/fileio/file-access-rights-constants)
@@ -279,7 +279,7 @@ impl NewHandle {
         this.build_nt(&nt_name)
     }
 
-    pub fn build_nt(mut self, nt_name: &NtString) -> Result<(Handle, bool)> {
+    pub fn build_nt(mut self, nt_name: &impl ToUnicodeString) -> Result<(Handle, bool)> {
         if self.options.contains(Options::DELETE_ON_CLOSE) {
             self.access |= Access::DELETE;
         }
@@ -296,7 +296,7 @@ impl NewHandle {
 
         unsafe {
             let mut oa = mem::zeroed();
-            let mut unicode_str = nt_name.as_unicode_string();
+            let mut unicode_str = nt_name.to_unicode_string();
             InitializeObjectAttributes(
                 &mut oa,
                 &mut unicode_str,

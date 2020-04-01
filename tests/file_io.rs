@@ -1,8 +1,6 @@
-use nt_native::{File, NtString};
-
 #[cfg(all(test, feature = "std"))]
 mod std_tests {
-    use super::*;
+    use nt_native::{File, NtString};
 
     fn test_dir() -> Option<String> {
         std::env::var("NT_NATIVE_TEST_DIR")

@@ -43,15 +43,6 @@ impl NtString {
     pub fn to_string(&self) -> std::string::String {
         std::string::String::from_utf16_lossy(&self.0)
     }
-
-    pub(crate) unsafe fn as_unicode_string(&self) -> UNICODE_STRING {
-        let len = self.0.len() as u16 * 2;
-        UNICODE_STRING {
-            Buffer: self.0.safe_ptr() as *mut _,
-            Length: len,
-            MaximumLength: len,
-        }
-    }
 }
 
 impl Default for NtString {
@@ -60,11 +51,11 @@ impl Default for NtString {
     }
 }
 
-pub(crate) trait AsUnicodeString {
+pub trait ToUnicodeString {
     unsafe fn to_unicode_string(&self) -> UNICODE_STRING;
 }
 
-impl AsUnicodeString for [u16] {
+impl ToUnicodeString for &[u16] {
     unsafe fn to_unicode_string(&self) -> UNICODE_STRING {
         let len = self.len() as u16 * 2;
         UNICODE_STRING {
@@ -75,9 +66,9 @@ impl AsUnicodeString for [u16] {
     }
 }
 
-impl AsUnicodeString for NtString {
+impl ToUnicodeString for NtString {
     unsafe fn to_unicode_string(&self) -> UNICODE_STRING {
-        self.0.to_unicode_string()
+        self.0.as_slice().to_unicode_string()
     }
 }
 

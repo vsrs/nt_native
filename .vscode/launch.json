@@ -8,7 +8,7 @@
             "name": "Unittests",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-76153c19821b1a60.exe",
+            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-e3ba6ad3907c745f.exe",
             "args": ["--test-threads=1", "--nocapture"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -22,7 +22,7 @@
                 "moduleLoad": false,
             },
             "sourceFileMap": {
-                "/rustc/f3e1a954d2ead4e2fc197c7da7d71e6c61bad196": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+                "/rustc/b8cedc00407a4c56a3bda1ed605c6fc166655447": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
               },
         },
         {
@@ -44,30 +44,8 @@
                 "moduleLoad": false,
             },
             "sourceFileMap": {
-                "/rustc/f3e1a954d2ead4e2fc197c7da7d71e6c61bad196": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
-              },
-        },
-        {
-            "name": "File io tests (Release)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/target\\release\\deps\\file_io-27d2839f78980a3e.exe",
-            "args": ["--test-threads=1", "--nocapture"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [
-                {"name": "RUST_BACKTRACE", "value": "1"},
-                {"name": "NT_NATIVE_TEST_DIR", "value": "${workspaceFolder}/../temp/"},
-             ],
-            "externalConsole": false,
-            "preLaunchTask": "${defaultBuildTask}",
-            "internalConsoleOptions": "openOnSessionStart",
-            "logging": {
-                "moduleLoad": false,
-            },
-            "sourceFileMap": {
-                "/rustc/f3e1a954d2ead4e2fc197c7da7d71e6c61bad196": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+                "/rustc/b8cedc00407a4c56a3bda1ed605c6fc166655447": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
               },
         }
-    ]
+      ]
 }

@@ -3,13 +3,14 @@ use core::{mem, ptr};
 use ntapi::ntioapi::*;
 use ntapi::ntobapi::*;
 use winapi::shared::minwindef::MAX_PATH;
+use winapi::um::winioctl::FILE_DEVICE_FILE_SYSTEM;
 use winapi::shared::ntdef::{
     InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
     PVOID, ULONG,
 };
 use winapi::shared::ntstatus::{STATUS_END_OF_FILE, STATUS_PENDING};
 
-use crate::*;
+use crate::{*, unsafe_tools::*};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -83,7 +84,7 @@ impl Handle {
     pub fn remove_object(mut self) -> Result<()> {
         unsafe {
             let mut oa = mem::MaybeUninit::<OBJECT_ATTRIBUTES>::uninit();
-            let mut name = NtString::new().as_unicode_string();
+            let mut name = NtString::new().to_unicode_string();
             InitializeObjectAttributes(
                 oa.as_mut_ptr(),
                 &mut name,       // name
@@ -102,7 +103,7 @@ impl Handle {
     }
 }
 
-// raw information
+// unsafe functions
 impl Handle {
     pub unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
         let mut info: T = mem::zeroed();
@@ -132,9 +133,83 @@ impl Handle {
 
         nt_result!(status, ())
     }
+
+    pub unsafe fn ioctl<I: Sized, O: Sized>(&self, code: u32, input: &I) -> Result<O> {
+        let mut output = mem::zeroed::<O>();
+        let (status, _size) = self.ioctl_raw(code, as_byte_slice(input), as_byte_slice_mut(&mut output));
+        nt_result!(status, {
+            debug_assert!(_size == core::mem::size_of::<O>());
+            output
+        })
+    }
+
+    pub unsafe fn ioctl_status(&self, code: u32) -> NTSTATUS {
+        let (status, _) = self.ioctl_raw(code, &[], &mut []);
+        status
+    }
+    
+    pub unsafe fn ioctl_query<T: Sized>(&self, code: u32) -> Result<T> {
+        let mut output = mem::zeroed::<T>();
+        let (status, _size) = self.ioctl_raw(code, &[], as_byte_slice_mut(&mut output));
+        nt_result!(status, {
+            debug_assert!(_size == core::mem::size_of::<T>());
+            output
+        })
+    }
+
+    pub unsafe fn ioctl_same_buffer<T: Sized>(&self, code: u32, buffer: &mut T) -> Result<()> {
+        let len = mem::size_of::<T>() as u32;
+        let input = (buffer as *const T) as PVOID;
+        let output = (buffer as *mut T) as PVOID;
+        
+        let (status, _size) = self.ioctl_impl(code, input, len, output, len);
+        nt_result!(status, {
+            debug_assert!(_size == mem::size_of::<T>());
+        })
+    }    
+
+    pub unsafe fn ioctl_raw(&self, code: u32, in_buffer: &[u8], mut out_buffer: &mut [u8]) -> (NTSTATUS, usize) {
+        self.ioctl_impl(code, in_buffer.safe_ptr() as PVOID, in_buffer.len() as ULONG, out_buffer.safe_mut_ptr() as PVOID, out_buffer.len() as ULONG)
+    }
+    
+    unsafe fn ioctl_impl(&self, code: u32, in_ptr: PVOID, in_len: ULONG, out_ptr: PVOID, out_len: ULONG) -> (NTSTATUS, usize) {
+        let fs_io_ctl = (code >> 16) == FILE_DEVICE_FILE_SYSTEM;
+        let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
+    
+        let mut status = if fs_io_ctl {
+            NtFsControlFile(
+                self.0,
+                ptr::null_mut(), // Event
+                None,            // ApcRoutine
+                ptr::null_mut(), // ApcContext
+                &mut iosb,       // IoStatusBlock
+                code,            // FsControlCode
+                in_ptr,          // InputBuffer
+                in_len,          // InputBufferLength
+                out_ptr,         // OutputBuffer
+                out_len,         // OutputBufferLength
+            )
+        } else {
+            NtDeviceIoControlFile(
+                self.0,
+                ptr::null_mut(), // Event
+                None,            // ApcRoutine
+                ptr::null_mut(), // ApcContext
+                &mut iosb,       // IoStatusBlock
+                code,            // IoControlCode
+                in_ptr,          // InputBuffer
+                in_len,          // InputBufferLength
+                out_ptr,         // OutputBuffer
+                out_len,         // OutputBufferLength
+            )
+        };
+    
+        status = self.wait_for_pending(status, &iosb);
+        (status, iosb.Information as usize)
+    }
 }
 
-// NT ops
+// NT io operations
 impl Handle {
     #[inline]
     unsafe fn wait_for_pending(&self, mut status: NTSTATUS, iosb: &IO_STATUS_BLOCK) -> NTSTATUS {
@@ -233,6 +308,7 @@ impl Handle {
 
         Ok(pos as u64)
     }
+
 }
 
 #[cfg(feature = "std")]
