@@ -104,6 +104,7 @@ mod std_tests {
             let nt_path: NtString = NtString::from(&file_name);
             let (mut handle, _) = File::open_or_create(&nt_path).unwrap();
             std_test(&mut handle).unwrap();
+            drop(handle);
             std::fs::remove_file(file_name).unwrap();
 
             use std::io::prelude::*;
