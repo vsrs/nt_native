@@ -11,7 +11,7 @@ impl From<Handle> for Volume {
 }
 
 impl Volume {
-    pub fn open(name: &NtString) -> Result<Volume> {
+    pub fn open(_name: &NtString) -> Result<Volume> {
         todo!()
     }
 
@@ -20,7 +20,7 @@ impl Volume {
     }
 }
 
-pub struct Volumes{}
+pub struct Volumes {}
 
 impl core::iter::Iterator for Volumes {
     type Item = Volume;
@@ -35,6 +35,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enumerate_volumes() {
-    }
+    fn enumerate_volumes() {}
 }

@@ -27,7 +27,7 @@ use winapi::um::winnt::{
     WRITE_OWNER,
 };
 
-use crate::{Handle, NtString, NullSafePtr, ToUnicodeString, Result};
+use crate::{Handle, NtString, NullSafePtr, Result, ToUnicodeString};
 
 bitflags! {
     /// Wrapper around [File Access Rights Constants](https://docs.microsoft.com/en-us/windows/win32/fileio/file-access-rights-constants)
