@@ -1,6 +1,6 @@
 use crate::*;
 use core::mem;
-use winapi::shared::ntdef::USHORT;
+use winapi::shared::ntdef::{ULONG, USHORT};
 use winapi::shared::ntstatus::{STATUS_BUFFER_OVERFLOW, STATUS_SUCCESS};
 
 #[derive(Clone)]
@@ -79,6 +79,14 @@ impl MountPoint {
             self.guid_name = NtString::from(name)
         }
     }
+
+    pub fn open_volume(&self) -> Result<Volume> {
+        Volume::open(&self.device_name)
+    }
+
+    pub fn open_readonly_volume(&self) -> Result<Volume> {
+        Volume::open_readonly(&self.device_name)
+    }
 }
 
 #[allow(bad_style)]
@@ -148,37 +156,24 @@ mod mountmgr {
     }}
 }
 
+const MP_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_MOUNT_POINT>();
+const TN_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_TARGET_NAME>();
+const U16_SIZE: usize = mem::size_of::<u16>();
+
 impl MountManager {
     pub fn open() -> Result<Self> {
-        let (handle, _) = NewHandle {
-            access: Access::GENERIC_READ | Access::GENERIC_WRITE,
-            share_access: ShareAccess::READ | ShareAccess::WRITE,
-            create_disposition: CreateDisposition::Open,
-            file_attributes: FileAttribute::NORMAL,
-            ..NewHandle::default()
-        }
-        .build_nt(&mountmgr::DEVICE_NAME)?;
+        let (handle, _) = NewHandle::device().build_nt(&mountmgr::DEVICE_NAME)?;
 
         Ok(Self(handle))
     }
 
     pub fn open_readonly() -> Result<Self> {
-        let (handle, _) = NewHandle {
-            access: Access::READ_ATTRIBUTES | Access::SYNCHRONIZE,
-            share_access: ShareAccess::READ | ShareAccess::WRITE,
-            create_disposition: CreateDisposition::Open,
-            file_attributes: FileAttribute::NORMAL,
-            ..NewHandle::default()
-        }
-        .build_nt(&mountmgr::DEVICE_NAME)?;
+        let (handle, _) = NewHandle::ro_device().build_nt(&mountmgr::DEVICE_NAME)?;
 
         Ok(Self(handle))
     }
 
     pub fn path_names(&self, device_name: &NtString) -> Result<Vec<NtString>> {
-        const TN_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_TARGET_NAME>();
-        const U16_SIZE: usize = mem::size_of::<u16>();
-
         let name_bytes_size = device_name.len() * U16_SIZE;
         let input_size = TN_SIZE - U16_SIZE + name_bytes_size;
         unsafe {
@@ -186,16 +181,14 @@ impl MountManager {
             #[allow(clippy::cast_ptr_alignment)]
             let spec = &mut *(input_buffer.as_mut_ptr() as *mut mountmgr::MOUNTMGR_TARGET_NAME);
             spec.DeviceNameLength = name_bytes_size as USHORT;
-            let destination: &mut [u8] =
-                core::slice::from_raw_parts_mut(spec.DeviceName.as_mut_ptr() as *mut _, name_bytes_size);
+            let destination: &mut [u8] = core::slice::from_raw_parts_mut(spec.DeviceName.as_mut_ptr() as *mut _, name_bytes_size);
             let name_bytes: &[u8] = core::slice::from_raw_parts(device_name.as_ptr() as *mut _, name_bytes_size);
             destination.copy_from_slice(name_bytes);
 
             let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_DOS_VOLUME_PATHS, &input_buffer)?;
             #[allow(clippy::cast_ptr_alignment)]
             let raw_paths = &*(out_buffer.as_ptr() as *const mountmgr::MOUNTMGR_VOLUME_PATHS);
-            let paths_slice: &[u16] =
-                core::slice::from_raw_parts(raw_paths.MultiSz.as_ptr(), raw_paths.MultiSzLength as usize / U16_SIZE);
+            let paths_slice: &[u16] = core::slice::from_raw_parts(raw_paths.MultiSz.as_ptr(), raw_paths.MultiSzLength as usize / U16_SIZE);
             let mut result = Vec::new();
             for path in paths_slice.split(|ch| ch == &0).filter(|p| !p.is_empty()) {
                 result.push(NtString::from(path));
@@ -211,14 +204,45 @@ impl MountManager {
             let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, as_byte_slice(&zeroed))?;
             let mut point_map: BTreeMap<Vec<u8>, MountPoint> = BTreeMap::new();
             self.process_points_output(&out_buffer, |link_name, id_bytes, device_name| {
-                let entry = point_map
-                    .entry(id_bytes.to_vec())
-                    .or_insert_with(|| MountPoint::new(id_bytes));
+                let entry = point_map.entry(id_bytes.to_vec()).or_insert_with(|| MountPoint::new(id_bytes));
                 entry.add_link_name(link_name);
                 entry.add_device_name(device_name);
             });
 
             Ok(point_map.values().cloned().collect())
+        }
+    }
+
+    pub fn volume_mount_point(&self, device_name: &NtString) -> Result<MountPoint> {
+        let name_bytes_size = device_name.len() * U16_SIZE;
+        let input_size = MP_SIZE + name_bytes_size;
+
+        unsafe {
+            let mut input_buffer = alloc_buffer(input_size);
+            #[allow(clippy::cast_ptr_alignment)]
+            let mut point = &mut *(input_buffer.as_mut_ptr() as *mut mountmgr::MOUNTMGR_MOUNT_POINT);
+            point.SymbolicLinkNameOffset = 0;
+            point.SymbolicLinkNameLength = 0;
+            point.DeviceNameLength = name_bytes_size as USHORT;
+            point.DeviceNameOffset = MP_SIZE as ULONG;
+            point.UniqueIdLength = 0;
+            point.UniqueIdOffset = 0;
+            let name_bytes: &[u8] = core::slice::from_raw_parts(device_name.as_ptr() as *mut _, name_bytes_size);
+            input_buffer[MP_SIZE..MP_SIZE + name_bytes_size].copy_from_slice(name_bytes);
+
+            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, &input_buffer)?;
+            let mut mount_point: Option<MountPoint> = None;
+            self.process_points_output(&out_buffer, |link_name, id_bytes, device_name| {
+                if mount_point.is_none() {
+                    mount_point = Some(MountPoint::new(id_bytes));
+                }
+                if let Some(mp) = &mut mount_point {
+                    mp.add_link_name(link_name);
+                    mp.add_device_name(device_name);
+                }
+            });
+
+            Ok(mount_point.unwrap())
         }
     }
 
@@ -259,8 +283,7 @@ impl MountManager {
             let end = point.DeviceNameOffset as usize + point.DeviceNameLength as usize;
             let device_bytes = &out_buffer[start..end];
             #[allow(clippy::cast_ptr_alignment)]
-            let device_name: &[u16] =
-                core::slice::from_raw_parts(device_bytes.as_ptr() as *const _, device_bytes.len() / 2);
+            let device_name: &[u16] = core::slice::from_raw_parts(device_bytes.as_ptr() as *const _, device_bytes.len() / 2);
 
             f(link_name, id_bytes, device_name);
         }

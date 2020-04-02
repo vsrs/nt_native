@@ -76,8 +76,7 @@ mod std_impl {
         use winapi::shared::ntdef::{CHAR, LPSTR, PVOID};
         use winapi::um::libloaderapi::GetModuleHandleA;
         use winapi::um::winbase::{
-            FormatMessageA, LocalFree, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_HMODULE,
-            FORMAT_MESSAGE_IGNORE_INSERTS,
+            FormatMessageA, LocalFree, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_HMODULE, FORMAT_MESSAGE_IGNORE_INSERTS,
         };
 
         unsafe {

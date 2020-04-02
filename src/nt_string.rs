@@ -52,6 +52,9 @@ impl Default for NtString {
 }
 
 pub trait ToUnicodeString {
+    /// # Safety
+    /// 
+    /// UNICODE_STRING::Buffer is managed by Self instance.
     unsafe fn to_unicode_string(&self) -> UNICODE_STRING;
 }
 
@@ -105,8 +108,7 @@ impl From<&String> for NtString {
 
 impl From<&UNICODE_STRING> for NtString {
     fn from(data: &UNICODE_STRING) -> Self {
-        let utf16_slice =
-            unsafe { core::slice::from_raw_parts(data.Buffer, data.Length as usize / core::mem::size_of::<u16>()) };
+        let utf16_slice = unsafe { core::slice::from_raw_parts(data.Buffer, data.Length as usize / core::mem::size_of::<u16>()) };
         Self::from(utf16_slice)
     }
 }
@@ -139,12 +141,8 @@ pub fn dos_name_to_nt(dos_name: &NtString) -> Result<(NtString, bool)> {
             }
         };
 
-        let status = RtlDosPathNameToNtPathName_U_WithStatus(
-            dos_name.as_ptr() as PWSTR,
-            raw.as_mut_ptr(),
-            &mut file_part,
-            core::ptr::null_mut(),
-        );
+        let status =
+            RtlDosPathNameToNtPathName_U_WithStatus(dos_name.as_ptr() as PWSTR, raw.as_mut_ptr(), &mut file_part, core::ptr::null_mut());
         if status != STATUS_SUCCESS {
             return Err(crate::Error::from(status));
         }
@@ -199,10 +197,7 @@ mod tests {
         let prefix = build_prefix();
         let res1 = dos_name_to_nt(nt_str_ref!("some/path/with/dir.name/file.name")).unwrap();
 
-        assert_eq!(
-            format!("{}some\\path\\with\\dir.name\\file.name", prefix),
-            res1.0.to_string()
-        );
+        assert_eq!(format!("{}some\\path\\with\\dir.name\\file.name", prefix), res1.0.to_string());
         assert_eq!(false, res1.1);
     }
 

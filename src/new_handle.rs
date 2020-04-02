@@ -1,30 +1,27 @@
 use core::mem;
 
 use ntapi::ntioapi::{
-    NtCreateFile, FILE_COMPLETE_IF_OPLOCKED, FILE_CREATE, FILE_CREATE_TREE_CONNECTION, FILE_DELETE_ON_CLOSE,
-    FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_NO_EA_KNOWLEDGE, FILE_NO_INTERMEDIATE_BUFFERING, FILE_OPEN,
-    FILE_OPENED, FILE_OPEN_BY_FILE_ID, FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_IF, FILE_OPEN_REPARSE_POINT,
-    FILE_OPEN_REQUIRING_OPLOCK, FILE_OVERWRITE, FILE_OVERWRITE_IF, FILE_OVERWRITTEN, FILE_RANDOM_ACCESS,
-    FILE_RESERVE_OPFILTER, FILE_SEQUENTIAL_ONLY, FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_ALERT,
+    NtCreateFile, FILE_COMPLETE_IF_OPLOCKED, FILE_CREATE, FILE_CREATE_TREE_CONNECTION, FILE_DELETE_ON_CLOSE, FILE_DIRECTORY_FILE,
+    FILE_NON_DIRECTORY_FILE, FILE_NO_EA_KNOWLEDGE, FILE_NO_INTERMEDIATE_BUFFERING, FILE_OPEN, FILE_OPENED, FILE_OPEN_BY_FILE_ID,
+    FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_IF, FILE_OPEN_REPARSE_POINT, FILE_OPEN_REQUIRING_OPLOCK, FILE_OVERWRITE, FILE_OVERWRITE_IF,
+    FILE_OVERWRITTEN, FILE_RANDOM_ACCESS, FILE_RESERVE_OPFILTER, FILE_SEQUENTIAL_ONLY, FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_ALERT,
     FILE_SYNCHRONOUS_IO_NONALERT, FILE_WRITE_THROUGH, IO_STATUS_BLOCK,
 };
 use ntapi::ntobapi::OBJ_INHERIT;
 use winapi::shared::ntdef::{
     InitializeObjectAttributes, HANDLE, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE, OBJ_FORCE_ACCESS_CHECK,
-    OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF, OBJ_OPENLINK, OBJ_PERMANENT,
-    OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER, PVOID,
+    OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF, OBJ_OPENLINK, OBJ_PERMANENT, OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER,
+    PVOID,
 };
 use winapi::um::winnt::{
-    FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY, FILE_APPEND_DATA, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_COMPRESSED,
-    FILE_ATTRIBUTE_DEVICE, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_EA, FILE_ATTRIBUTE_ENCRYPTED,
-    FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_INTEGRITY_STREAM, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED,
-    FILE_ATTRIBUTE_NO_SCRUB_DATA, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_PINNED, FILE_ATTRIBUTE_READONLY,
-    FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS, FILE_ATTRIBUTE_RECALL_ON_OPEN, FILE_ATTRIBUTE_REPARSE_POINT,
-    FILE_ATTRIBUTE_SPARSE_FILE, FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_TEMPORARY, FILE_ATTRIBUTE_UNPINNED,
-    FILE_ATTRIBUTE_VIRTUAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES,
-    FILE_READ_DATA, FILE_READ_EA, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES,
-    FILE_WRITE_DATA, FILE_WRITE_EA, PSECURITY_DESCRIPTOR, READ_CONTROL, SECURITY_DESCRIPTOR, SYNCHRONIZE, WRITE_DAC,
-    WRITE_OWNER,
+    FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY, FILE_APPEND_DATA, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_COMPRESSED, FILE_ATTRIBUTE_DEVICE,
+    FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_EA, FILE_ATTRIBUTE_ENCRYPTED, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_INTEGRITY_STREAM,
+    FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED, FILE_ATTRIBUTE_NO_SCRUB_DATA, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_PINNED,
+    FILE_ATTRIBUTE_READONLY, FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS, FILE_ATTRIBUTE_RECALL_ON_OPEN, FILE_ATTRIBUTE_REPARSE_POINT,
+    FILE_ATTRIBUTE_SPARSE_FILE, FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_TEMPORARY, FILE_ATTRIBUTE_UNPINNED, FILE_ATTRIBUTE_VIRTUAL,
+    FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_READ_EA, FILE_SHARE_DELETE,
+    FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, PSECURITY_DESCRIPTOR, READ_CONTROL,
+    SECURITY_DESCRIPTOR, SYNCHRONIZE, WRITE_DAC, WRITE_OWNER,
 };
 
 use crate::{Handle, NtString, NullSafePtr, Result, ToUnicodeString};
@@ -297,13 +294,7 @@ impl NewHandle {
         unsafe {
             let mut oa = mem::zeroed();
             let mut unicode_str = nt_name.to_unicode_string();
-            InitializeObjectAttributes(
-                &mut oa,
-                &mut unicode_str,
-                self.attributes.bits,
-                root,
-                security_descriptor,
-            );
+            InitializeObjectAttributes(&mut oa, &mut unicode_str, self.attributes.bits, root, security_descriptor);
 
             let mut raw: HANDLE = mem::zeroed();
             let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
@@ -336,6 +327,26 @@ impl NewHandle {
 
 // internals
 impl NewHandle {
+    pub(crate) fn device() -> Self {
+        Self {
+            access: Access::GENERIC_READ | Access::GENERIC_WRITE,
+            share_access: ShareAccess::READ | ShareAccess::WRITE,
+            create_disposition: CreateDisposition::Open,
+            file_attributes: FileAttribute::NORMAL,
+            ..NewHandle::default()
+        }
+    }
+
+    pub(crate) fn ro_device() -> Self {
+        Self {
+            access: Access::READ_ATTRIBUTES | Access::SYNCHRONIZE,
+            share_access: ShareAccess::READ | ShareAccess::WRITE,
+            create_disposition: CreateDisposition::Open,
+            file_attributes: FileAttribute::NORMAL,
+            ..NewHandle::default()
+        }
+    }
+
     pub(crate) fn auto_options(mut self, dos_name: &NtString) -> Result<(NtString, Self)> {
         let (nt_name, is_dir) = super::dos_name_to_nt(dos_name)?;
         if !self.options.contains(Options::DIRECTORY) && !self.options.contains(Options::NON_DIRECTORY) {
@@ -390,9 +401,7 @@ mod tests {
 
     #[test]
     fn auto_options() {
-        let (_, builder) = NewHandle::default()
-            .auto_options(&nt_str!("dir.name/file.name"))
-            .unwrap();
+        let (_, builder) = NewHandle::default().auto_options(&nt_str!("dir.name/file.name")).unwrap();
         assert!(builder.options.contains(Options::NON_DIRECTORY)); // autodetected by name
 
         let (_, builder) = NewHandle::default().auto_options(&nt_str!("dir.name/")).unwrap();

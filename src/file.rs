@@ -2,7 +2,7 @@ use crate::*;
 use core::mem;
 use ntapi::ntioapi::*;
 use winapi::shared::minwindef::MAX_PATH;
-use winapi::shared::ntdef::{TRUE, ULONG};
+use winapi::shared::ntdef::{PVOID, TRUE, ULONG};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -71,36 +71,70 @@ impl File {
 
 // FILE_***_INFORMATION helpers
 impl File {
+    unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
+        let mut info: T = mem::zeroed();
+        let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+
+        let status = NtQueryInformationFile(
+            self.0.as_raw(),
+            &mut iosb,
+            &mut info as *mut T as PVOID,
+            mem::size_of::<T>() as u32,
+            class,
+        );
+
+        nt_result!(status, info)
+    }
+
+    unsafe fn set_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
+        let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+
+        let status = NtSetInformationFile(
+            self.0.as_raw(),
+            &mut iosb,
+            info as *const T as PVOID,
+            mem::size_of::<T>() as u32,
+            class,
+        );
+
+        nt_result!(status, ())
+    }
+
     pub fn pos(&self) -> Result<u64> {
         unsafe {
-            let info = self
-                .0
-                .query_info::<FILE_POSITION_INFORMATION>(FilePositionInformation)?;
+            let info = self.query_info::<FILE_POSITION_INFORMATION>(FilePositionInformation)?;
             Ok(*info.CurrentByteOffset.QuadPart() as u64)
         }
     }
 
+    pub fn set_pos(&self, pos: u64) -> Result<u64> {
+        unsafe {
+            let mut info: FILE_POSITION_INFORMATION = mem::zeroed();
+            *info.CurrentByteOffset.QuadPart_mut() = pos as i64;
+
+            self.set_info(FilePositionInformation, &info)?;
+        }
+
+        Ok(pos as u64)
+    }
+
     pub fn size(&self) -> Result<u64> {
         unsafe {
-            let info = self
-                .0
-                .query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let info = self.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
             Ok(*info.EndOfFile.QuadPart() as u64)
         }
     }
 
     pub fn size_on_disk(&self) -> Result<u64> {
         unsafe {
-            let info = self
-                .0
-                .query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let info = self.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
             Ok(*info.AllocationSize.QuadPart() as u64)
         }
     }
 
     pub fn access_mask(&self) -> Result<Access> {
         unsafe {
-            let info = self.0.query_info::<FILE_ACCESS_INFORMATION>(FileAccessInformation)?;
+            let info = self.query_info::<FILE_ACCESS_INFORMATION>(FileAccessInformation)?;
             Ok(Access::from_bits_unchecked(info.AccessFlags))
         }
     }
@@ -110,9 +144,7 @@ impl File {
     /// See [FILE_ALIGNMENT_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_alignment_information)
     pub fn alignment(&self) -> Result<usize> {
         unsafe {
-            let info = self
-                .0
-                .query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
+            let info = self.query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
             Ok(info.AlignmentRequirement as usize)
         }
     }
@@ -123,7 +155,7 @@ impl File {
     /// See [FILE_MODE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_mode_information)
     pub fn mode(&self) -> Result<Options> {
         unsafe {
-            let info = self.0.query_info::<FILE_MODE_INFORMATION>(FileModeInformation)?;
+            let info = self.query_info::<FILE_MODE_INFORMATION>(FileModeInformation)?;
             Ok(Options::from_bits_unchecked(info.Mode))
         }
     }
@@ -133,9 +165,7 @@ impl File {
     /// See [FILE_IS_REMOTE_DEVICE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_is_remote_device_information)
     pub fn is_remote(&self) -> Result<bool> {
         unsafe {
-            let info = self
-                .0
-                .query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
+            let info = self.query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
             Ok(info.IsRemote == TRUE)
         }
     }
@@ -154,7 +184,7 @@ impl File {
             name_buffer: [u16; MAX_PATH],
         }
 
-        let res = unsafe { self.0.query_info::<FileNameInfoWithBuffer>(FileNameInformation)? };
+        let res = unsafe { self.query_info::<FileNameInfoWithBuffer>(FileNameInformation)? };
         let name_bytes = &res.name_buffer[..(res.length_in_bytes as usize / mem::size_of::<u16>())];
 
         Ok(NtString::from(name_bytes))
@@ -164,7 +194,7 @@ impl File {
         unsafe {
             let mut info: FILE_END_OF_FILE_INFORMATION = mem::zeroed();
             *info.EndOfFile.QuadPart_mut() = end_of_file as i64;
-            self.0.set_info(FileEndOfFileInformation, &info)
+            self.set_info(FileEndOfFileInformation, &info)
         }
     }
 }
@@ -181,12 +211,15 @@ impl ReadAt for File {
     }
 }
 
+impl Flush for File {
+    fn flush(&self) -> Result<()> {
+        self.0.flush()
+    }
+}
+
 impl Write for File {
     fn write(&self, data: &[u8]) -> Result<usize> {
         self.0.write(data, None)
-    }
-    fn flush(&self) -> Result<()> {
-        self.0.flush()
     }
 }
 
@@ -206,7 +239,7 @@ impl Seek for File {
 
         pos += offset;
 
-        self.0.seek(pos as u64)
+        self.set_pos(pos as u64)
     }
     fn stream_position(&self) -> Result<u64> {
         self.pos()

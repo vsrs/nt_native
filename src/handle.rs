@@ -4,8 +4,7 @@ use ntapi::ntioapi::*;
 use ntapi::ntobapi::*;
 use winapi::shared::minwindef::MAX_PATH;
 use winapi::shared::ntdef::{
-    InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER,
-    PVOID, ULONG,
+    InitializeObjectAttributes, FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, OBJECT_ATTRIBUTES, PLARGE_INTEGER, PVOID, ULONG,
 };
 use winapi::shared::ntstatus::{STATUS_END_OF_FILE, STATUS_PENDING};
 use winapi::um::winioctl::FILE_DEVICE_FILE_SYSTEM;
@@ -105,87 +104,57 @@ impl Handle {
 
 // unsafe functions
 impl Handle {
-    pub unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
-        let mut info: T = mem::zeroed();
-        let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
-
-        let status = NtQueryInformationFile(
-            self.0,
-            &mut iosb,
-            &mut info as *mut T as PVOID,
-            mem::size_of::<T>() as u32,
-            class,
-        );
-
-        nt_result!(status, info)
+    pub fn ioctl<I: Sized, O: Sized>(&self, code: u32, input: &I) -> Result<O> {
+        unsafe {
+            let mut output = mem::zeroed::<O>();
+            let (status, _size) = self.ioctl_raw(code, as_byte_slice(input), as_byte_slice_mut(&mut output));
+            nt_result!(status, {
+                debug_assert!(_size == core::mem::size_of::<O>());
+                output
+            })
+        }
     }
 
-    pub unsafe fn set_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
-        let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
-
-        let status = NtSetInformationFile(
-            self.0,
-            &mut iosb,
-            info as *const T as PVOID,
-            mem::size_of::<T>() as u32,
-            class,
-        );
-
-        nt_result!(status, ())
-    }
-
-    pub unsafe fn ioctl<I: Sized, O: Sized>(&self, code: u32, input: &I) -> Result<O> {
-        let mut output = mem::zeroed::<O>();
-        let (status, _size) = self.ioctl_raw(code, as_byte_slice(input), as_byte_slice_mut(&mut output));
-        nt_result!(status, {
-            debug_assert!(_size == core::mem::size_of::<O>());
-            output
-        })
-    }
-
-    pub unsafe fn ioctl_status(&self, code: u32) -> NTSTATUS {
+    pub fn ioctl_status(&self, code: u32) -> NTSTATUS {
         let (status, _) = self.ioctl_raw(code, &[], &mut []);
         status
     }
 
-    pub unsafe fn ioctl_query<T: Sized>(&self, code: u32) -> Result<T> {
-        let mut output = mem::zeroed::<T>();
-        let (status, _size) = self.ioctl_raw(code, &[], as_byte_slice_mut(&mut output));
-        nt_result!(status, {
-            debug_assert!(_size == core::mem::size_of::<T>());
-            output
-        })
+    pub fn ioctl_query<T: Sized>(&self, code: u32) -> Result<T> {
+        unsafe {
+            let mut output = mem::zeroed::<T>();
+            let (status, _size) = self.ioctl_raw(code, &[], as_byte_slice_mut(&mut output));
+            nt_result!(status, {
+                debug_assert!(_size == core::mem::size_of::<T>());
+                output
+            })
+        }
     }
 
-    pub unsafe fn ioctl_same_buffer<T: Sized>(&self, code: u32, buffer: &mut T) -> Result<()> {
+    pub fn ioctl_same_buffer<T: Sized>(&self, code: u32, buffer: &mut T) -> Result<()> {
         let len = mem::size_of::<T>() as u32;
         let input = (buffer as *const T) as PVOID;
         let output = (buffer as *mut T) as PVOID;
 
-        let (status, _size) = self.ioctl_impl(code, input, len, output, len);
+        let (status, _size) = unsafe { self.ioctl_impl(code, input, len, output, len) };
         nt_result!(status, {
             debug_assert!(_size == mem::size_of::<T>());
         })
     }
 
-    pub unsafe fn ioctl_raw(&self, code: u32, in_buffer: &[u8], mut out_buffer: &mut [u8]) -> (NTSTATUS, usize) {
-        self.ioctl_impl(
-            code,
-            in_buffer.safe_ptr() as PVOID,
-            in_buffer.len() as ULONG,
-            out_buffer.safe_mut_ptr() as PVOID,
-            out_buffer.len() as ULONG,
-        )
+    pub fn ioctl_raw(&self, code: u32, in_buffer: &[u8], mut out_buffer: &mut [u8]) -> (NTSTATUS, usize) {
+        unsafe {
+            self.ioctl_impl(
+                code,
+                in_buffer.safe_ptr() as PVOID,
+                in_buffer.len() as ULONG,
+                out_buffer.safe_mut_ptr() as PVOID,
+                out_buffer.len() as ULONG,
+            )
+        }
     }
 
-    unsafe fn ioctl_impl(
-        &self,
-        code: u32,
-        in_ptr: PVOID,
-        in_len: ULONG,
-        out_ptr: PVOID,
-        out_len: ULONG,
-    ) -> (NTSTATUS, usize) {
+    unsafe fn ioctl_impl(&self, code: u32, in_ptr: PVOID, in_len: ULONG, out_ptr: PVOID, out_len: ULONG) -> (NTSTATUS, usize) {
         let fs_io_ctl = (code >> 16) == FILE_DEVICE_FILE_SYSTEM;
         let mut iosb = mem::zeroed::<IO_STATUS_BLOCK>();
 
@@ -309,17 +278,6 @@ impl Handle {
             let status = NtFlushBuffersFile(self.0, &mut iosb);
             nt_result!(status, ())
         }
-    }
-
-    pub fn seek(&self, pos: u64) -> Result<u64> {
-        unsafe {
-            let mut info: FILE_POSITION_INFORMATION = mem::zeroed();
-            *info.CurrentByteOffset.QuadPart_mut() = pos as i64;
-
-            self.set_info(FilePositionInformation, &info)?;
-        }
-
-        Ok(pos as u64)
     }
 }
 

@@ -8,12 +8,15 @@ pub trait ReadAt {
     fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize>;
 }
 
-pub trait Write {
-    fn write(&self, data: &[u8]) -> Result<usize>;
+pub trait Flush {
     fn flush(&self) -> Result<()>;
 }
 
-pub trait WriteAt {
+pub trait Write: Flush {
+    fn write(&self, data: &[u8]) -> Result<usize>;
+}
+
+pub trait WriteAt: Flush {
     fn write_at(&self, offset: u64, data: &[u8]) -> Result<usize>;
 }
 
