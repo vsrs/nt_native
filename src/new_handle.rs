@@ -327,19 +327,9 @@ impl NewHandle {
 
 // internals
 impl NewHandle {
-    pub(crate) fn device() -> Self {
+    pub(crate) fn device(access: Access) -> Self {
         Self {
-            access: Access::GENERIC_READ | Access::GENERIC_WRITE,
-            share_access: ShareAccess::READ | ShareAccess::WRITE,
-            create_disposition: CreateDisposition::Open,
-            file_attributes: FileAttribute::NORMAL,
-            ..NewHandle::default()
-        }
-    }
-
-    pub(crate) fn ro_device() -> Self {
-        Self {
-            access: Access::READ_ATTRIBUTES | Access::SYNCHRONIZE,
+            access,
             share_access: ShareAccess::READ | ShareAccess::WRITE,
             create_disposition: CreateDisposition::Open,
             file_attributes: FileAttribute::NORMAL,

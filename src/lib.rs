@@ -74,6 +74,8 @@ pub use volume::*;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
+pub(crate) const U16_SIZE: usize = core::mem::size_of::<u16>();
+
 // TODO: Maybe move to a separate crate? The same code would be useful in similar linux\macos implementations.
 pub(crate) use unsafe_tools::*;
 mod unsafe_tools {

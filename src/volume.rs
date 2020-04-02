@@ -1,4 +1,8 @@
 use crate::*;
+use core::mem;
+use ntapi::ntioapi::*;
+use winapi::shared::minwindef::MAX_PATH;
+use winapi::shared::ntdef::{LONG, PVOID, ULONG};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -12,13 +16,14 @@ impl From<Handle> for Volume {
 
 impl Volume {
     pub fn open(name: &NtString) -> Result<Self> {
-        let (handle, _) = NewHandle::device().build(name)?;
+        let (handle, _) = NewHandle::device(Access::GENERIC_READ | Access::GENERIC_WRITE).build(name)?;
 
         Ok(Self(handle))
     }
 
+    /// To get the volume information only, not to read data!
     pub fn open_readonly(name: &NtString) -> Result<Self> {
-        let (handle, _) = NewHandle::ro_device().build(name)?;
+        let (handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build(name)?;
 
         Ok(Self(handle))
     }
@@ -56,6 +61,50 @@ impl Volume {
     }
 }
 
+pub struct FsInformation {
+    pub name: NtString,
+}
+
+// FILE_FS_***_INFORMATION helpers
+impl Volume {
+    unsafe fn query_info<T: Sized>(handle: &Handle, class: FS_INFORMATION_CLASS) -> Result<T> {
+        let mut info: T = mem::zeroed();
+        let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+
+        let status = NtQueryVolumeInformationFile(
+            handle.as_raw(),
+            &mut iosb,
+            &mut info as *mut T as PVOID,
+            mem::size_of::<T>() as u32,
+            class,
+        );
+
+        nt_result!(status, info)
+    }
+
+    pub fn fs_information(&self) -> Result<FsInformation> {
+        #[repr(C)]
+        struct FsInfoWithBuffer {
+            attributes: ULONG,
+            maximum_component_name_length: LONG,
+            fs_name_length: ULONG,
+            fs_name: [u16; MAX_PATH],
+        }
+
+        // have to reopen the file system of the volume
+        let mut device_name = self.device_name()?;
+        device_name.push('\\' as u16); // trailing slash opens the FS
+
+        let (fs_handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build_nt(&device_name)?;
+        let attr_info: FsInfoWithBuffer = unsafe { Self::query_info(&fs_handle, FileFsAttributeInformation)? };
+        let name = NtString::from(&attr_info.fs_name[..attr_info.fs_name_length as usize / U16_SIZE]);
+
+        let vol_info: FILE_FS_VOLUME_INFORMATION = unsafe { Self::query_info(&fs_handle, FileFsVolumeInformation)? };
+
+        Ok(FsInformation { name })
+    }
+}
+
 impl Flush for Volume {
     fn flush(&self) -> Result<()> {
         self.0.flush()
@@ -63,12 +112,14 @@ impl Flush for Volume {
 }
 
 impl ReadAt for Volume {
+    /// buffer size should be aligned!
     fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize> {
         self.0.read(buffer, Some(offset))
     }
 }
 
 impl WriteAt for Volume {
+    /// buffer size should be aligned!
     fn write_at(&self, offset: u64, data: &[u8]) -> Result<usize> {
         self.0.write(data, Some(offset))
     }
@@ -91,5 +142,30 @@ mod tests {
 
         let guid_name = volume.guid_name().unwrap();
         println!("   Guid Name: {}", guid_name.to_string());
+    }
+
+    #[test]
+    fn volume_fs_info() {
+        let volume = Volume::open_readonly(nt_str_ref!("\\\\.\\c:")).unwrap();
+        let fs_info = volume.fs_information().unwrap();
+
+        println!("FS: {}", fs_info.name.to_string());
+    }
+
+    #[test] // needs admin rights
+    fn volume_read() {
+        if std::env::var("NT_NATIVE_TEST_ADMIN").is_ok() {
+            let volume = Volume::open(nt_str_ref!("\\\\.\\c:")).unwrap();
+            let mut buffer = vec![0_u8; 512];
+            let readed = volume.read_at(0, &mut buffer).unwrap();
+            assert_eq!(readed, buffer.len());
+
+            println!("First bytes:");
+            for chunk in buffer.chunks(16).take(4) {
+                println!("{:02x?}", chunk)
+            }
+        } else {
+            print!("Non admin, skipped ... ");
+        }
     }
 }

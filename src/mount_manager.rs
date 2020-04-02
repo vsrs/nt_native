@@ -158,17 +158,16 @@ mod mountmgr {
 
 const MP_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_MOUNT_POINT>();
 const TN_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_TARGET_NAME>();
-const U16_SIZE: usize = mem::size_of::<u16>();
 
 impl MountManager {
     pub fn open() -> Result<Self> {
-        let (handle, _) = NewHandle::device().build_nt(&mountmgr::DEVICE_NAME)?;
+        let (handle, _) = NewHandle::device(Access::GENERIC_READ | Access::GENERIC_WRITE).build_nt(&mountmgr::DEVICE_NAME)?;
 
         Ok(Self(handle))
     }
 
     pub fn open_readonly() -> Result<Self> {
-        let (handle, _) = NewHandle::ro_device().build_nt(&mountmgr::DEVICE_NAME)?;
+        let (handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build_nt(&mountmgr::DEVICE_NAME)?;
 
         Ok(Self(handle))
     }

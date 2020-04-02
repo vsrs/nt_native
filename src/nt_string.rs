@@ -21,7 +21,7 @@ macro_rules! nt_str_ref {
 pub struct NtString(Vec<u16>);
 
 impl core::ops::Deref for NtString {
-    type Target = [u16];
+    type Target = Vec<u16>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -53,7 +53,7 @@ impl Default for NtString {
 
 pub trait ToUnicodeString {
     /// # Safety
-    /// 
+    ///
     /// UNICODE_STRING::Buffer is managed by Self instance.
     unsafe fn to_unicode_string(&self) -> UNICODE_STRING;
 }
