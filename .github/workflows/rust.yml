@@ -31,7 +31,7 @@ jobs:
       uses: actions-rs/cargo@v1.0.1
       with:
         command: test
-        args: --verbose -- --nocapture
+        args: --verbose -- --nocapture --test-threads=1
 
     - name: Run tests in release mode
       env:
@@ -39,4 +39,4 @@ jobs:
       uses: actions-rs/cargo@v1.0.1
       with:
         command: test
-        args: --release --verbose -- --nocapture
+        args: --release --verbose -- --nocapture --test-threads=1
