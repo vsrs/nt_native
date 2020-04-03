@@ -12,6 +12,10 @@ pub trait Flush {
     fn flush(&self) -> Result<()>;
 }
 
+pub trait Size {
+    fn size(&self) -> Result<u64>;
+}
+
 pub trait Write: Flush {
     fn write(&self, data: &[u8]) -> Result<usize>;
 }

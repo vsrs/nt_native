@@ -217,6 +217,12 @@ impl Flush for File {
     }
 }
 
+impl Size for File {
+    fn size(&self) -> Result<u64> {
+        File::size(self)
+    }
+}
+
 impl Write for File {
     fn write(&self, data: &[u8]) -> Result<usize> {
         self.0.write(data, None)

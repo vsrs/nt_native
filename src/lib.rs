@@ -72,6 +72,8 @@ pub use mount_manager::*;
 mod volume;
 pub use volume::*;
 
+mod ioctl;
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub(crate) const U16_SIZE: usize = core::mem::size_of::<u16>();
