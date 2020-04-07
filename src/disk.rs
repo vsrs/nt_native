@@ -1,3 +1,4 @@
+use winapi::um::winioctl::{IOCTL_DISK_GET_DRIVE_GEOMETRY, DISK_GEOMETRY};
 use crate::*;
 
 #[derive(Clone)]
@@ -89,6 +90,13 @@ impl Disk {
 
     pub fn attributes(&self) -> Result<u64> {
         ioctl::attributes(&self.0)
+    }
+
+    pub fn geometry(&self) -> Result<DISK_GEOMETRY> {
+        let mut data = unsafe { StructBuffer::<DISK_GEOMETRY>::new() };
+        self.0.ioctl_query(IOCTL_DISK_GET_DRIVE_GEOMETRY, &mut data)?;
+
+        Ok(data.take())
     }
 }
 
