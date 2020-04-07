@@ -13,7 +13,7 @@ impl From<Handle> for Disk {
 
 impl Disk {
     fn index_to_name(index: u32) -> NtString {
-        let name = format!("\\??\\PhysicalDrive{}", index);
+        let name = crate::format!("\\??\\PhysicalDrive{}", index);
         NtString::from(name)
     }
 
