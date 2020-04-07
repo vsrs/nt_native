@@ -15,14 +15,22 @@ impl From<Handle> for Volume {
 }
 
 impl Volume {
+    /// Requires admin rights!
     pub fn open(name: &NtString) -> Result<Self> {
         let (handle, _) = NewHandle::device(Access::GENERIC_READ | Access::GENERIC_WRITE).build(name)?;
 
         Ok(Self(handle))
     }
 
-    /// To get the volume information only, not to read data!
+    /// Requires admin rights!
     pub fn open_readonly(name: &NtString) -> Result<Self> {
+        let (handle, _) = NewHandle::device(Access::GENERIC_READ).build(name)?;
+
+        Ok(Self(handle))
+    }
+
+    /// To get the volume information only, not to read data!
+    pub fn open_info(name: &NtString) -> Result<Self> {
         let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build(name)?;
 
         Ok(Self(handle))
@@ -60,7 +68,7 @@ impl Volume {
         mm.path_names(&device_name)
     }
 
-    /// Requires volume to be opened with Volume::open() and admin rights!
+    /// Requires admin rights!
     pub fn length(&self) -> Result<u64> {
         crate::ioctl::length(&self.0)
     }
@@ -200,7 +208,7 @@ mod tests {
 
     #[test]
     fn open_ro_c() {
-        let volume = Volume::open_readonly(nt_str_ref!("\\\\.\\c:")).unwrap();
+        let volume = Volume::open_info(nt_str_ref!("\\\\.\\c:")).unwrap();
         let path_names = volume.path_names().unwrap();
         println!("Volume 'C:' path names: ");
         for p in path_names {
@@ -215,7 +223,7 @@ mod tests {
 
     #[test]
     fn information() {
-        let volume = Volume::open_readonly(nt_str_ref!("\\\\.\\c:")).unwrap();
+        let volume = Volume::open_info(nt_str_ref!("\\\\.\\c:")).unwrap();
 
         let fs_info = volume.fs_information().unwrap();
         println!("FS: {}", fs_info.name.to_string());

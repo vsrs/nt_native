@@ -8,7 +8,7 @@
             "name": "Unittests",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-e3ba6ad3907c745f.exe",
+            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-36115359d9afff61.exe ",
             "args": ["--test-threads=1", "--nocapture"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

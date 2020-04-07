@@ -68,8 +68,17 @@ pub use mount_manager::*;
 mod volume;
 pub use volume::*;
 
+mod disk;
+pub use disk::*;
+
 mod ioctl;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub(crate) const U16_SIZE: usize = core::mem::size_of::<u16>();
+
+#[inline]
+#[allow(non_snake_case)]
+pub(crate) const fn CTL_CODE(device_type: u32, function: u32, method: u32, access: u32) -> u32 {
+    (device_type << 16) | (access << 14) | (function << 2) | method
+}

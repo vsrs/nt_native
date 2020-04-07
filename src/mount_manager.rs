@@ -85,7 +85,7 @@ impl MountPoint {
     }
 
     pub fn open_readonly_volume(&self) -> Result<Volume> {
-        Volume::open_readonly(&self.device_name)
+        Volume::open_info(&self.device_name)
     }
 }
 
@@ -93,6 +93,7 @@ impl MountPoint {
 #[allow(dead_code)]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod mountmgr {
+    use crate::CTL_CODE;
     use winapi::shared::minwindef::{DWORD, ULONG, USHORT};
     use winapi::shared::ntdef::WCHAR;
     use winapi::um::winioctl::{FILE_ANY_ACCESS, FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED};
@@ -102,12 +103,6 @@ mod mountmgr {
 
     pub const MOUNTMGRCONTROLTYPE: DWORD = 0x0000_006D; // 'm'
     pub const MOUNTDEVCONTROLTYPE: DWORD = 0x0000_004D; // 'M'
-
-    #[inline]
-    // winapi::um::winioctl::CTL_CODE is not const!
-    pub(crate) const fn CTL_CODE(DeviceType: DWORD, Function: DWORD, Method: DWORD, Access: DWORD) -> DWORD {
-        (DeviceType << 16) | (Access << 14) | (Function << 2) | Method
-    }
 
     pub const IOCTL_MOUNTMGR_CREATE_POINT: DWORD                = CTL_CODE(MOUNTMGRCONTROLTYPE, 0, METHOD_BUFFERED,FILE_READ_ACCESS | FILE_WRITE_ACCESS);
     pub const IOCTL_MOUNTMGR_DELETE_POINTS: DWORD               = CTL_CODE(MOUNTMGRCONTROLTYPE, 1, METHOD_BUFFERED,FILE_READ_ACCESS | FILE_WRITE_ACCESS);
