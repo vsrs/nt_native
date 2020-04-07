@@ -121,9 +121,10 @@ impl Handle {
 
     pub fn ioctl_query<T: AsByteSliceMut>(&self, code: u32, output: &mut T) -> Result<()> {
         unsafe {
-            let (status, _size) = self.ioctl_raw(code, &[], output.as_byte_slice_mut());
+            let output_slice = output.as_byte_slice_mut();
+            let (status, _size) = self.ioctl_raw(code, &[], output_slice);
             nt_result!(status, {
-                debug_assert!(_size == core::mem::size_of::<T>());
+                debug_assert!(_size == output_slice.len());
             })
         }
     }

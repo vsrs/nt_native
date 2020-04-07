@@ -23,7 +23,7 @@ impl Volume {
 
     /// To get the volume information only, not to read data!
     pub fn open_readonly(name: &NtString) -> Result<Self> {
-        let (handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build(name)?;
+        let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build(name)?;
 
         Ok(Self(handle))
     }
@@ -158,7 +158,7 @@ impl Volume {
         let mut device_name = self.device_name()?;
         device_name.push('\\' as u16); // trailing slash opens the FS
 
-        let (fs_handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build_nt(&device_name)?;
+        let (fs_handle, _) = NewHandle::device(Access::SYNCHRONIZE).build_nt(&device_name)?;
 
         Ok(fs_handle)
     }

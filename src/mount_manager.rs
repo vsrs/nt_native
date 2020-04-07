@@ -167,7 +167,7 @@ impl MountManager {
     }
 
     pub fn open_readonly() -> Result<Self> {
-        let (handle, _) = NewHandle::device(Access::READ_ATTRIBUTES | Access::SYNCHRONIZE).build_nt(&mountmgr::DEVICE_NAME)?;
+        let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build_nt(&mountmgr::DEVICE_NAME)?;
 
         Ok(Self(handle))
     }
