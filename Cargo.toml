@@ -16,9 +16,10 @@ winapi = { version = "0.3" }
 ntapi = { version = "0.3.3" }
 bitflags = "1.0"
 wstr = "0.2"
+rdisk_shared = { git="https://github.com/vsrs/rdisk_shared", default-features = false }
 
 [features]
 default = ["std"]
 kernel = ["ntapi/kernel"]
 user = ["ntapi/user", "winapi/libloaderapi", "winapi/winbase"]
-std = ["user"]
+std = ["user", "rdisk_shared/std"]

@@ -2,7 +2,7 @@ use crate::*;
 use core::mem;
 use ntapi::ntioapi::*;
 use winapi::shared::minwindef::MAX_PATH;
-use winapi::shared::ntdef::{LONG, PVOID, ULONG};
+use winapi::shared::ntdef::{PVOID, TRUE};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -86,63 +86,57 @@ pub struct SizeInformation {
 
 // FILE_FS_***_INFORMATION helpers
 impl Volume {
-    pub unsafe fn query_info<T: Sized>(handle: &Handle, class: FS_INFORMATION_CLASS) -> Result<T> {
-        let mut info: T = mem::zeroed();
+    pub unsafe fn query_info<T: AsByteSliceMut>(handle: &Handle, class: FS_INFORMATION_CLASS, buffer: &mut T) -> Result<()> {
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+        let bytes_buffer = buffer.as_byte_slice_mut();
+        let bytes_len = bytes_buffer.len();
 
         let status = NtQueryVolumeInformationFile(
             handle.as_raw(),
             &mut iosb,
-            &mut info as *mut T as PVOID,
-            mem::size_of::<T>() as u32,
+            bytes_buffer.as_mut_ptr() as PVOID,
+            bytes_len as u32,
             class,
         );
 
-        nt_result!(status, info)
+        nt_result!(status, ())
     }
 
     pub fn fs_information(&self) -> Result<FsInformation> {
-        #[repr(C)]
-        struct FsInfoWithBuffer {
-            attributes: ULONG,
-            maximum_component_name_length: LONG,
-            fs_name_length: ULONG,
-            fs_name: [u16; MAX_PATH],
-        }
-
         let fs_handle = self.reopen_fs()?;
-        let attr_info: FsInfoWithBuffer = unsafe { Self::query_info(&fs_handle, FileFsAttributeInformation)? };
-        let name = NtString::from(&attr_info.fs_name[..attr_info.fs_name_length as usize / U16_SIZE]);
+        let info = unsafe {
+            let mut info = StructBuffer::<FILE_FS_ATTRIBUTE_INFORMATION>::with_ext(MAX_PATH * U16_SIZE);
+            Self::query_info(&fs_handle, FileFsAttributeInformation, &mut info)?;
+            let name = NtString::from_raw_bytes(info.FileSystemName.as_ptr(), info.FileSystemNameLength);
+            FsInformation { name }
+        };
 
-        Ok(FsInformation { name })
+        Ok(info)
     }
 
     pub fn information(&self) -> Result<VolumeInformation> {
-        #[repr(C)]
-        struct VolumeInfoWithBuffer {
-            creation_time : u64, // LARGE_INTEGER 
-            serial_number: ULONG,
-            label_length: ULONG,
-            supports_objects: bool,
-            label: [u16; MAX_PATH],
-        }
-
         let fs_handle = self.reopen_fs()?;
-        let vol_info: VolumeInfoWithBuffer = unsafe { Self::query_info(&fs_handle, FileFsVolumeInformation)? };
-        let label = NtString::from(&vol_info.label[..vol_info.label_length as usize / U16_SIZE]);
+        let info = unsafe {
+            let mut info = StructBuffer::<FILE_FS_VOLUME_INFORMATION>::with_ext(MAX_PATH * U16_SIZE);
+            Self::query_info(&fs_handle, FileFsVolumeInformation, &mut info)?;
+            let label = NtString::from_raw_bytes( info.VolumeLabel.as_ptr(), info.VolumeLabelLength);
 
-        Ok(VolumeInformation{
-            label,
-            serial_number: vol_info.serial_number,
-            supports_objects: vol_info.supports_objects
-        })
+            VolumeInformation{
+                label,
+                serial_number: info.VolumeSerialNumber,
+                supports_objects: info.SupportsObjects == TRUE,
+            }
+        };
+
+        Ok(info)
     }
 
     pub fn fs_size_information(&self) -> Result<SizeInformation> {
         let fs_handle = self.reopen_fs()?;
 
         unsafe {
-            let info : FILE_FS_FULL_SIZE_INFORMATION = Self::query_info(&fs_handle, FileFsFullSizeInformation)?;
+            let mut info = StructBuffer::<FILE_FS_FULL_SIZE_INFORMATION>::new();
+            Self::query_info(&fs_handle, FileFsFullSizeInformation, &mut info)?;
 
             let cluster_size = (info.SectorsPerAllocationUnit * info.BytesPerSector) as u64;
             let total = (*info.TotalAllocationUnits.QuadPart() as u64) * cluster_size;

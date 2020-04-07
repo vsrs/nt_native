@@ -154,10 +154,10 @@ mod mountmgr {
         MultiSzLength: ULONG,
         MultiSz: [WCHAR; 1],
     }}
+
 }
 
 const MP_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_MOUNT_POINT>();
-const TN_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_TARGET_NAME>();
 
 impl MountManager {
     pub fn open() -> Result<Self> {
@@ -173,21 +173,19 @@ impl MountManager {
     }
 
     pub fn path_names(&self, device_name: &NtString) -> Result<Vec<NtString>> {
-        let name_bytes_size = device_name.len() * U16_SIZE;
-        let input_size = TN_SIZE - U16_SIZE + name_bytes_size;
         unsafe {
-            let mut input_buffer = alloc_buffer(input_size);
-            #[allow(clippy::cast_ptr_alignment)]
-            let spec = &mut *(input_buffer.as_mut_ptr() as *mut mountmgr::MOUNTMGR_TARGET_NAME);
+            let name_bytes: &[u8] = device_name.as_byte_slice();
+            let name_bytes_size = name_bytes.len();
+            let ext_size = name_bytes_size - U16_SIZE; // one WCHAR is in the MOUNTMGR_TARGET_NAME
+    
+            let mut spec = StructBuffer::<mountmgr::MOUNTMGR_TARGET_NAME>::with_ext(ext_size);
             spec.DeviceNameLength = name_bytes_size as USHORT;
             let destination: &mut [u8] = core::slice::from_raw_parts_mut(spec.DeviceName.as_mut_ptr() as *mut _, name_bytes_size);
-            let name_bytes: &[u8] = core::slice::from_raw_parts(device_name.as_ptr() as *mut _, name_bytes_size);
             destination.copy_from_slice(name_bytes);
 
-            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_DOS_VOLUME_PATHS, &input_buffer)?;
-            #[allow(clippy::cast_ptr_alignment)]
-            let raw_paths = &*(out_buffer.as_ptr() as *const mountmgr::MOUNTMGR_VOLUME_PATHS);
-            let paths_slice: &[u16] = core::slice::from_raw_parts(raw_paths.MultiSz.as_ptr(), raw_paths.MultiSzLength as usize / U16_SIZE);
+            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_DOS_VOLUME_PATHS, spec.as_byte_slice())?;
+            let output = StructBuffer::<mountmgr::MOUNTMGR_VOLUME_PATHS>::with_buffer(out_buffer);
+            let paths_slice: &[u16] = core::slice::from_raw_parts(output.MultiSz.as_ptr(), output.MultiSzLength as usize / U16_SIZE);
             let mut result = Vec::new();
             for path in paths_slice.split(|ch| ch == &0).filter(|p| !p.is_empty()) {
                 result.push(NtString::from(path));
@@ -199,8 +197,9 @@ impl MountManager {
 
     pub fn volumes(&self) -> Result<Vec<MountPoint>> {
         unsafe {
-            let zeroed: mountmgr::MOUNTMGR_MOUNT_POINT = mem::zeroed();
-            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, as_byte_slice(&zeroed))?;
+            let zeroed = StructBuffer::<mountmgr::MOUNTMGR_MOUNT_POINT>::zeroed();
+
+            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, zeroed.as_byte_slice())?;
             let mut point_map: BTreeMap<Vec<u8>, MountPoint> = BTreeMap::new();
             self.process_points_output(&out_buffer, |link_name, id_bytes, device_name| {
                 let entry = point_map.entry(id_bytes.to_vec()).or_insert_with(|| MountPoint::new(id_bytes));
@@ -213,23 +212,20 @@ impl MountManager {
     }
 
     pub fn volume_mount_point(&self, device_name: &NtString) -> Result<MountPoint> {
-        let name_bytes_size = device_name.len() * U16_SIZE;
-        let input_size = MP_SIZE + name_bytes_size;
-
         unsafe {
-            let mut input_buffer = alloc_buffer(input_size);
-            #[allow(clippy::cast_ptr_alignment)]
-            let mut point = &mut *(input_buffer.as_mut_ptr() as *mut mountmgr::MOUNTMGR_MOUNT_POINT);
+            let name_bytes: &[u8] = device_name.as_byte_slice();
+            let name_bytes_size = name_bytes.len();
+            let mut point = StructBuffer::<mountmgr::MOUNTMGR_MOUNT_POINT>::with_ext(name_bytes_size);
             point.SymbolicLinkNameOffset = 0;
             point.SymbolicLinkNameLength = 0;
             point.DeviceNameLength = name_bytes_size as USHORT;
             point.DeviceNameOffset = MP_SIZE as ULONG;
             point.UniqueIdLength = 0;
             point.UniqueIdOffset = 0;
-            let name_bytes: &[u8] = core::slice::from_raw_parts(device_name.as_ptr() as *mut _, name_bytes_size);
-            input_buffer[MP_SIZE..MP_SIZE + name_bytes_size].copy_from_slice(name_bytes);
+            let ext_buffer = point.ext_buffer_mut();
+            ext_buffer[..name_bytes_size].copy_from_slice(name_bytes);
 
-            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, &input_buffer)?;
+            let out_buffer = self.ioctl(mountmgr::IOCTL_MOUNTMGR_QUERY_POINTS, point.as_byte_slice())?;
             let mut mount_point: Option<MountPoint> = None;
             self.process_points_output(&out_buffer, |link_name, id_bytes, device_name| {
                 if mount_point.is_none() {

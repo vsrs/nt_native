@@ -2,7 +2,7 @@ use crate::*;
 use core::mem;
 use ntapi::ntioapi::*;
 use winapi::shared::minwindef::MAX_PATH;
-use winapi::shared::ntdef::{PVOID, TRUE, ULONG};
+use winapi::shared::ntdef::{PVOID, TRUE};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -71,29 +71,32 @@ impl File {
 
 // FILE_***_INFORMATION helpers
 impl File {
-    unsafe fn query_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS) -> Result<T> {
-        let mut info: T = mem::zeroed();
+    unsafe fn query_info<T: AsByteSliceMut>(&self, class: FILE_INFORMATION_CLASS, buffer: &mut T) -> Result<()> {
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+        let bytes_buffer = buffer.as_byte_slice_mut();
+        let bytes_len = bytes_buffer.len();
 
         let status = NtQueryInformationFile(
             self.0.as_raw(),
             &mut iosb,
-            &mut info as *mut T as PVOID,
-            mem::size_of::<T>() as u32,
+            bytes_buffer.as_mut_ptr() as PVOID,
+            bytes_len as u32,
             class,
         );
 
-        nt_result!(status, info)
+        nt_result!(status, ())
     }
 
-    unsafe fn set_info<T: Sized>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
+    unsafe fn set_info<T: AsByteSlice>(&self, class: FILE_INFORMATION_CLASS, info: &T) -> Result<()> {
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+        let bytes_buffer = info.as_byte_slice();
+        let bytes_len = bytes_buffer.len();
 
         let status = NtSetInformationFile(
             self.0.as_raw(),
             &mut iosb,
-            info as *const T as PVOID,
-            mem::size_of::<T>() as u32,
+            bytes_buffer.as_ptr() as PVOID,
+            bytes_len as u32,
             class,
         );
 
@@ -102,14 +105,15 @@ impl File {
 
     pub fn pos(&self) -> Result<u64> {
         unsafe {
-            let info = self.query_info::<FILE_POSITION_INFORMATION>(FilePositionInformation)?;
+            let mut info = StructBuffer::<FILE_POSITION_INFORMATION>::new();
+            self.query_info(FilePositionInformation, &mut info)?;
             Ok(*info.CurrentByteOffset.QuadPart() as u64)
         }
     }
 
     pub fn set_pos(&self, pos: u64) -> Result<u64> {
         unsafe {
-            let mut info: FILE_POSITION_INFORMATION = mem::zeroed();
+            let mut info = StructBuffer::<FILE_POSITION_INFORMATION>::zeroed();
             *info.CurrentByteOffset.QuadPart_mut() = pos as i64;
 
             self.set_info(FilePositionInformation, &info)?;
@@ -120,21 +124,24 @@ impl File {
 
     pub fn size(&self) -> Result<u64> {
         unsafe {
-            let info = self.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let mut info = StructBuffer::<FILE_STANDARD_INFORMATION>::new();
+            self.query_info(FileStandardInformation, &mut info)?;
             Ok(*info.EndOfFile.QuadPart() as u64)
         }
     }
 
     pub fn size_on_disk(&self) -> Result<u64> {
         unsafe {
-            let info = self.query_info::<FILE_STANDARD_INFORMATION>(FileStandardInformation)?;
+            let mut info = StructBuffer::<FILE_STANDARD_INFORMATION>::new();
+            self.query_info(FileStandardInformation, &mut info)?;
             Ok(*info.AllocationSize.QuadPart() as u64)
         }
     }
 
     pub fn access_mask(&self) -> Result<Access> {
         unsafe {
-            let info = self.query_info::<FILE_ACCESS_INFORMATION>(FileAccessInformation)?;
+            let mut info = StructBuffer::<FILE_ACCESS_INFORMATION>::new();
+            self.query_info(FileAccessInformation, &mut info)?;
             Ok(Access::from_bits_unchecked(info.AccessFlags))
         }
     }
@@ -144,7 +151,8 @@ impl File {
     /// See [FILE_ALIGNMENT_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_alignment_information)
     pub fn alignment(&self) -> Result<usize> {
         unsafe {
-            let info = self.query_info::<FILE_ALIGNMENT_INFORMATION>(FileAlignmentInformation)?;
+            let mut info = StructBuffer::<FILE_ALIGNMENT_INFORMATION>::new();
+            self.query_info(FileAlignmentInformation, &mut info)?;
             Ok(info.AlignmentRequirement as usize)
         }
     }
@@ -155,7 +163,8 @@ impl File {
     /// See [FILE_MODE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_mode_information)
     pub fn mode(&self) -> Result<Options> {
         unsafe {
-            let info = self.query_info::<FILE_MODE_INFORMATION>(FileModeInformation)?;
+            let mut info = StructBuffer::<FILE_MODE_INFORMATION>::new();
+            self.query_info(FileModeInformation, &mut info)?;
             Ok(Options::from_bits_unchecked(info.Mode))
         }
     }
@@ -165,7 +174,8 @@ impl File {
     /// See [FILE_IS_REMOTE_DEVICE_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_is_remote_device_information)
     pub fn is_remote(&self) -> Result<bool> {
         unsafe {
-            let info = self.query_info::<FILE_IS_REMOTE_DEVICE_INFORMATION>(FileIsRemoteDeviceInformation)?;
+            let mut info = StructBuffer::<FILE_IS_REMOTE_DEVICE_INFORMATION>::new();
+            self.query_info(FileIsRemoteDeviceInformation, &mut info)?;
             Ok(info.IsRemote == TRUE)
         }
     }
@@ -178,21 +188,16 @@ impl File {
     ///
     /// See [FILE_NAME_INFORMATION](https://docs.microsoft.com/ru-ru/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_name_information)
     pub fn path_name(&self) -> Result<NtString> {
-        #[repr(C)]
-        struct FileNameInfoWithBuffer {
-            length_in_bytes: ULONG,
-            name_buffer: [u16; MAX_PATH],
+        unsafe {
+            let mut info = StructBuffer::<FILE_NAME_INFORMATION>::with_ext(MAX_PATH * U16_SIZE);
+            self.query_info(FileNameInformation, &mut info)?;
+            Ok(NtString::from_raw_bytes(info.FileName.as_ptr(), info.FileNameLength))
         }
-
-        let res = unsafe { self.query_info::<FileNameInfoWithBuffer>(FileNameInformation)? };
-        let name_bytes = &res.name_buffer[..(res.length_in_bytes as usize / mem::size_of::<u16>())];
-
-        Ok(NtString::from(name_bytes))
     }
 
     pub fn set_end_of_file(&self, end_of_file: u64) -> Result<()> {
         unsafe {
-            let mut info: FILE_END_OF_FILE_INFORMATION = mem::zeroed();
+            let mut info = StructBuffer::<FILE_END_OF_FILE_INFORMATION>::zeroed();
             *info.EndOfFile.QuadPart_mut() = end_of_file as i64;
             self.set_info(FileEndOfFileInformation, &info)
         }

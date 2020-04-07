@@ -39,6 +39,11 @@ impl NtString {
         Self(Vec::new())
     }
 
+    pub unsafe fn from_raw_bytes(ptr: *const u16, len: u32) -> Self {
+        let name_bytes: &[u16] = core::slice::from_raw_parts(ptr, len as usize / U16_SIZE);
+        Self::from(name_bytes)
+    }
+
     #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> std::string::String {
         std::string::String::from_utf16_lossy(&self.0)
@@ -48,6 +53,12 @@ impl NtString {
 impl Default for NtString {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl AsByteSlice for NtString {
+    unsafe fn as_byte_slice(&self) -> &[u8] {
+        self.0.as_byte_slice()
     }
 }
 

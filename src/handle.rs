@@ -9,7 +9,7 @@ use winapi::shared::ntdef::{
 use winapi::shared::ntstatus::{STATUS_END_OF_FILE, STATUS_PENDING};
 use winapi::um::winioctl::FILE_DEVICE_FILE_SYSTEM;
 
-use crate::{unsafe_tools::*, *};
+use crate::*;
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -104,10 +104,10 @@ impl Handle {
 
 // unsafe functions
 impl Handle {
-    pub fn ioctl<I: Sized, O: Sized>(&self, code: u32, input: &I) -> Result<O> {
+    pub fn ioctl<I: AsByteSlice, O: AsByteSliceMut>(&self, code: u32, input: &I) -> Result<O> {
         unsafe {
             let mut output = mem::zeroed::<O>();
-            let (status, _size) = self.ioctl_raw(code, as_byte_slice(input), as_byte_slice_mut(&mut output));
+            let (status, _size) = self.ioctl_raw(code, input.as_byte_slice(), output.as_byte_slice_mut());
             nt_result!(status, {
                 debug_assert!(_size == core::mem::size_of::<O>());
                 output
@@ -120,13 +120,13 @@ impl Handle {
         status
     }
 
-    pub fn ioctl_query<T: Sized>(&self, code: u32) -> Result<T> {
+    pub fn ioctl_query<T: Sized + Clone + Copy>(&self, code: u32) -> Result<T> {
         unsafe {
-            let mut output = mem::zeroed::<T>();
-            let (status, _size) = self.ioctl_raw(code, &[], as_byte_slice_mut(&mut output));
+            let mut output = StructBuffer::<T>::new();
+            let (status, _size) = self.ioctl_raw(code, &[], output.as_byte_slice_mut());
             nt_result!(status, {
                 debug_assert!(_size == core::mem::size_of::<T>());
-                output
+                output.take()
             })
         }
     }
