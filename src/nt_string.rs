@@ -45,8 +45,8 @@ impl NtString {
     }
 
     #[allow(clippy::inherent_to_string)]
-    pub fn to_string(&self) -> std::string::String {
-        std::string::String::from_utf16_lossy(&self.0)
+    pub fn to_string(&self) -> crate::String {
+        crate::String::from_utf16_lossy(&self.0)
     }
 }
 

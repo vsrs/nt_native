@@ -212,7 +212,7 @@ pub struct NewHandle {
     pub share_access: ShareAccess,
     pub create_disposition: CreateDisposition,
     pub options: Options,
-    pub ea: std::vec::Vec<u8>,
+    pub ea: crate::Vec<u8>,
 }
 
 impl Default for NewHandle {
@@ -227,7 +227,7 @@ impl Default for NewHandle {
             share_access: ShareAccess::default(),
             create_disposition: CreateDisposition::OpenOrCreate,
             options: Options::default(),
-            ea: std::vec::Vec::new(),
+            ea: crate::Vec::new(),
         }
     }
 }
