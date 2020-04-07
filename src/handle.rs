@@ -104,13 +104,12 @@ impl Handle {
 
 // unsafe functions
 impl Handle {
-    pub fn ioctl<I: AsByteSlice, O: AsByteSliceMut>(&self, code: u32, input: &I) -> Result<O> {
+    pub fn ioctl<I: AsByteSlice, O: AsByteSliceMut>(&self, code: u32, input: &I, output: &mut O) -> Result<()> {
         unsafe {
-            let mut output = mem::zeroed::<O>();
-            let (status, _size) = self.ioctl_raw(code, input.as_byte_slice(), output.as_byte_slice_mut());
+            let output_slice = output.as_byte_slice_mut();
+            let (status, _size) = self.ioctl_raw(code, input.as_byte_slice(), output_slice);
             nt_result!(status, {
-                debug_assert!(_size == core::mem::size_of::<O>());
-                output
+                debug_assert!(_size == output_slice.len());
             })
         }
     }
@@ -120,13 +119,11 @@ impl Handle {
         status
     }
 
-    pub fn ioctl_query<T: Sized + Clone + Copy>(&self, code: u32) -> Result<T> {
+    pub fn ioctl_query<T: AsByteSliceMut>(&self, code: u32, output: &mut T) -> Result<()> {
         unsafe {
-            let mut output = StructBuffer::<T>::new();
             let (status, _size) = self.ioctl_raw(code, &[], output.as_byte_slice_mut());
             nt_result!(status, {
                 debug_assert!(_size == core::mem::size_of::<T>());
-                output.take()
             })
         }
     }

@@ -177,7 +177,7 @@ impl MountManager {
             let name_bytes: &[u8] = device_name.as_byte_slice();
             let name_bytes_size = name_bytes.len();
             let ext_size = name_bytes_size - U16_SIZE; // one WCHAR is in the MOUNTMGR_TARGET_NAME
-    
+
             let mut spec = StructBuffer::<mountmgr::MOUNTMGR_TARGET_NAME>::with_ext(ext_size);
             spec.DeviceNameLength = name_bytes_size as USHORT;
             let destination: &mut [u8] = core::slice::from_raw_parts_mut(spec.DeviceName.as_mut_ptr() as *mut _, name_bytes_size);

@@ -119,9 +119,9 @@ impl Volume {
         let info = unsafe {
             let mut info = StructBuffer::<FILE_FS_VOLUME_INFORMATION>::with_ext(MAX_PATH * U16_SIZE);
             Self::query_info(&fs_handle, FileFsVolumeInformation, &mut info)?;
-            let label = NtString::from_raw_bytes( info.VolumeLabel.as_ptr(), info.VolumeLabelLength);
+            let label = NtString::from_raw_bytes(info.VolumeLabel.as_ptr(), info.VolumeLabelLength);
 
-            VolumeInformation{
+            VolumeInformation {
                 label,
                 serial_number: info.VolumeSerialNumber,
                 supports_objects: info.SupportsObjects == TRUE,
@@ -143,7 +143,7 @@ impl Volume {
             let caller_available = (*info.CallerAvailableAllocationUnits.QuadPart() as u64) * cluster_size;
             let actual_available = (*info.ActualAvailableAllocationUnits.QuadPart() as u64) * cluster_size;
 
-            Ok(SizeInformation{
+            Ok(SizeInformation {
                 total,
                 caller_available,
                 actual_available,
@@ -216,12 +216,17 @@ mod tests {
     #[test]
     fn information() {
         let volume = Volume::open_readonly(nt_str_ref!("\\\\.\\c:")).unwrap();
-        
+
         let fs_info = volume.fs_information().unwrap();
         println!("FS: {}", fs_info.name.to_string());
 
         let volume_info = volume.information().unwrap();
-        println!("Volume: {} {:08x}, objects: {}", volume_info.label.to_string(), volume_info.serial_number, volume_info.supports_objects);
+        println!(
+            "Volume: {} {:08x}, objects: {}",
+            volume_info.label.to_string(),
+            volume_info.serial_number,
+            volume_info.supports_objects
+        );
 
         let size_information = volume.fs_size_information().unwrap();
         println!("Size: {}", size_information.total);
@@ -231,7 +236,7 @@ mod tests {
     fn length() {
         if std::env::var("NT_NATIVE_TEST_ADMIN").is_ok() {
             let volume = Volume::open(nt_str_ref!("\\\\.\\c:")).unwrap();
-        
+
             let size = volume.length().unwrap();
             println!("Size: {}", size)
         } else {

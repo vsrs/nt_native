@@ -92,13 +92,7 @@ impl File {
         let bytes_buffer = info.as_byte_slice();
         let bytes_len = bytes_buffer.len();
 
-        let status = NtSetInformationFile(
-            self.0.as_raw(),
-            &mut iosb,
-            bytes_buffer.as_ptr() as PVOID,
-            bytes_len as u32,
-            class,
-        );
+        let status = NtSetInformationFile(self.0.as_raw(), &mut iosb, bytes_buffer.as_ptr() as PVOID, bytes_len as u32, class);
 
         nt_result!(status, ())
     }
