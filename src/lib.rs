@@ -17,12 +17,10 @@ extern crate bitflags;
 #[allow(unused_imports)]
 extern crate wstr;
 
-extern crate rdisk_shared;
-
 #[doc(hidden)]
 pub use wstr::{wstr, wstr_impl}; // Just the macros needed.
 
-pub(crate) use rdisk_shared::*;
+pub(crate) use rdisk_shared::{xstd::*, *};
 
 #[macro_export]
 macro_rules! nt_result {
