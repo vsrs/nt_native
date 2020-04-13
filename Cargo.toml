@@ -16,7 +16,7 @@ winapi = { version = "0.3" }
 ntapi = { version = "0.3.3" }
 bitflags = "1.0"
 wstr = "0.2"
-rdisk_shared = { git="https://github.com/vsrs/rdisk_shared", default-features = false }
+rdisk_shared = { version = "^0.1", default-features = false }
 
 [features]
 default = ["std"]
