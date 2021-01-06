@@ -11,7 +11,7 @@ use ntapi::ntobapi::OBJ_INHERIT;
 use winapi::shared::ntdef::{
     HANDLE, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE, OBJ_FORCE_ACCESS_CHECK,
     OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF, OBJ_OPENLINK, OBJ_PERMANENT, OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER,
-    POBJECT_ATTRIBUTES, PUNICODE_STRING, PVOID, ULONG, UNICODE_STRING,
+    POBJECT_ATTRIBUTES, PUNICODE_STRING, PVOID, ULONG,
 };
 use winapi::um::winnt::{
     FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY, FILE_APPEND_DATA, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_COMPRESSED, FILE_ATTRIBUTE_DEVICE,
@@ -163,13 +163,6 @@ impl ObjectAttributes {
 
     pub fn as_mut_ptr(&mut self) -> POBJECT_ATTRIBUTES {
         &mut self.0
-    }
-}
-
-impl From<&Handle> for ObjectAttributes {
-    fn from(handle: &Handle) -> Self {
-        let mut d: UNICODE_STRING = unsafe { mem::zeroed() };
-        ObjectAttributes::new(&mut d, Attribute::default(), Some(handle), None)
     }
 }
 

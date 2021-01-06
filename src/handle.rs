@@ -2,8 +2,8 @@ use core::{mem, ptr};
 
 use ntapi::ntioapi::*;
 use ntapi::ntobapi::*;
-use winapi::shared::{minwindef::MAX_PATH, ntdef::{InitializeObjectAttributes, OBJECT_ATTRIBUTES}};
-use winapi::shared::ntdef::{FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, PLARGE_INTEGER, PVOID, ULONG};
+use winapi::shared::minwindef::MAX_PATH;
+use winapi::shared::ntdef::{FALSE, HANDLE, LARGE_INTEGER, NTSTATUS, NT_SUCCESS, PLARGE_INTEGER, PVOID, ULONG, UNICODE_STRING};
 use winapi::shared::ntstatus::{STATUS_END_OF_FILE, STATUS_PENDING};
 use winapi::um::winioctl::FILE_DEVICE_FILE_SYSTEM;
 
@@ -80,22 +80,13 @@ impl Handle {
     /// Warning: the file will be deleted immediately after the call!
     /// The system will not wait until the last HANDLE to the file is closed.
     pub fn remove_object(mut self) -> Result<()> {
-        unsafe {
-            let mut oa = mem::MaybeUninit::<OBJECT_ATTRIBUTES>::uninit();
-            let mut name = NtString::new().to_unicode_string();
-            InitializeObjectAttributes(
-                oa.as_mut_ptr(),
-                &mut name,       // name
-                0,               // attributes
-                self.0,          // root
-                ptr::null_mut(), // sd
-            );
-            let status = NtDeleteFile(oa.as_mut_ptr());
-            let _res = self.close(); // close anyway
-            nt_result!(status)
-        }
+        let mut d: UNICODE_STRING = unsafe { mem::zeroed() };
+        let mut oa = ObjectAttributes::new(&mut d, Attribute::default(), Some(&self), None);
+        let status = unsafe { NtDeleteFile(oa.as_mut_ptr()) };
+        let _res = self.close(); // close anyway
+        nt_result!(status)
     }
-    
+
     pub(crate) fn as_raw(&self) -> HANDLE {
         self.0
     }
