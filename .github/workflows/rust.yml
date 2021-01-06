@@ -28,6 +28,7 @@ jobs:
     - name: Run tests
       env:
         NT_NATIVE_TEST_DIR: .
+        RUST_BACKTRACE: 1  
       uses: actions-rs/cargo@v1.0.1
       with:
         command: test
@@ -36,6 +37,7 @@ jobs:
     - name: Run tests in release mode
       env:
         NT_NATIVE_TEST_DIR: .
+        RUST_BACKTRACE: 1 
       uses: actions-rs/cargo@v1.0.1
       with:
         command: test
