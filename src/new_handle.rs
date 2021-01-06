@@ -9,9 +9,9 @@ use ntapi::ntioapi::{
 };
 use ntapi::ntobapi::OBJ_INHERIT;
 use winapi::shared::ntdef::{
-    InitializeObjectAttributes, HANDLE, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE, OBJ_FORCE_ACCESS_CHECK,
+    HANDLE, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE, OBJ_FORCE_ACCESS_CHECK,
     OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF, OBJ_OPENLINK, OBJ_PERMANENT, OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER,
-    PVOID,
+    POBJECT_ATTRIBUTES, PUNICODE_STRING, PVOID, ULONG, UNICODE_STRING,
 };
 use winapi::um::winnt::{
     FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY, FILE_APPEND_DATA, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_COMPRESSED, FILE_ATTRIBUTE_DEVICE,
@@ -131,7 +131,47 @@ impl Default for ShareAccess {
     }
 }
 
+#[repr(transparent)]
 pub struct SecurityDescriptor(SECURITY_DESCRIPTOR);
+
+#[repr(transparent)]
+pub struct ObjectAttributes(OBJECT_ATTRIBUTES);
+
+impl ObjectAttributes {
+    pub fn new(name: PUNICODE_STRING, attrs: Attribute, root: Option<&Handle>, sd: Option<&SecurityDescriptor>) -> Self {
+        let root: HANDLE = match root {
+            None => core::ptr::null_mut(),
+            Some(r) => r.as_raw(),
+        };
+
+        let security_descriptor: PSECURITY_DESCRIPTOR = match sd {
+            None => core::ptr::null_mut(),
+            Some(sd) => &sd.0 as *const _ as PSECURITY_DESCRIPTOR,
+        };
+
+        let oa = OBJECT_ATTRIBUTES {
+            Length: core::mem::size_of::<OBJECT_ATTRIBUTES>() as ULONG,
+            RootDirectory: root,
+            ObjectName: name,
+            Attributes: attrs.bits() as ULONG,
+            SecurityDescriptor: security_descriptor,
+            SecurityQualityOfService: core::ptr::null_mut(),
+        };
+
+        Self(oa)
+    }
+
+    pub fn as_mut_ptr(&mut self) -> POBJECT_ATTRIBUTES {
+        &mut self.0
+    }
+}
+
+impl From<&Handle> for ObjectAttributes {
+    fn from(handle: &Handle) -> Self {
+        let mut d: UNICODE_STRING = unsafe { mem::zeroed() };
+        ObjectAttributes::new(&mut d, Attribute::default(), Some(handle), None)
+    }
+}
 
 pub enum CreateDisposition {
     /// If the file already exists, replace it with the given file.
@@ -281,27 +321,21 @@ impl NewHandle {
             self.access |= Access::DELETE;
         }
 
-        let root: HANDLE = match &self.root {
-            None => core::ptr::null_mut(),
-            Some(r) => r.as_raw(),
-        };
-
-        let security_descriptor: PSECURITY_DESCRIPTOR = match &self.security_descriptor {
-            None => core::ptr::null_mut(),
-            Some(sd) => &sd.0 as *const _ as PSECURITY_DESCRIPTOR,
-        };
-
         unsafe {
-            let mut oa = mem::zeroed();
             let mut unicode_str = nt_name.to_unicode_string();
-            InitializeObjectAttributes(&mut oa, &mut unicode_str, self.attributes.bits, root, security_descriptor);
+            let mut oa = ObjectAttributes::new(
+                &mut unicode_str,
+                self.attributes,
+                self.root.as_ref(),
+                self.security_descriptor.as_ref(),
+            );
 
             let mut raw: HANDLE = mem::zeroed();
             let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
             let status = NtCreateFile(
                 &mut raw,
                 self.access.bits,
-                &mut oa,
+                oa.as_mut_ptr(),
                 &mut iosb,
                 self.allocation_size_ptr(),
                 self.file_attributes.bits,

@@ -1,0 +1,4210 @@
+mod new_handle {
+    use crate::{Handle, NtString, NullSafePtr, Result, ToUnicodeString};
+    use core::mem;
+    use ntapi::ntioapi::{
+        NtCreateFile, FILE_COMPLETE_IF_OPLOCKED, FILE_CREATE, FILE_CREATE_TREE_CONNECTION,
+        FILE_DELETE_ON_CLOSE, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_NO_EA_KNOWLEDGE,
+        FILE_NO_INTERMEDIATE_BUFFERING, FILE_OPEN, FILE_OPENED, FILE_OPEN_BY_FILE_ID,
+        FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_IF, FILE_OPEN_REPARSE_POINT,
+        FILE_OPEN_REQUIRING_OPLOCK, FILE_OVERWRITE, FILE_OVERWRITE_IF, FILE_OVERWRITTEN,
+        FILE_RANDOM_ACCESS, FILE_RESERVE_OPFILTER, FILE_SEQUENTIAL_ONLY, FILE_SUPERSEDE,
+        FILE_SYNCHRONOUS_IO_ALERT, FILE_SYNCHRONOUS_IO_NONALERT, FILE_WRITE_THROUGH,
+        IO_STATUS_BLOCK,
+    };
+    use ntapi::ntobapi::OBJ_INHERIT;
+    use winapi::shared::ntdef::{
+        HANDLE, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, OBJ_EXCLUSIVE,
+        OBJ_FORCE_ACCESS_CHECK, OBJ_IGNORE_IMPERSONATED_DEVICEMAP, OBJ_KERNEL_HANDLE, OBJ_OPENIF,
+        OBJ_OPENLINK, OBJ_PERMANENT, OBJ_VALID_ATTRIBUTES, PLARGE_INTEGER, POBJECT_ATTRIBUTES,
+        PUNICODE_STRING, PVOID, ULONG, UNICODE_STRING,
+    };
+    use winapi::um::winnt::{
+        FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY, FILE_APPEND_DATA, FILE_ATTRIBUTE_ARCHIVE,
+        FILE_ATTRIBUTE_COMPRESSED, FILE_ATTRIBUTE_DEVICE, FILE_ATTRIBUTE_DIRECTORY,
+        FILE_ATTRIBUTE_EA, FILE_ATTRIBUTE_ENCRYPTED, FILE_ATTRIBUTE_HIDDEN,
+        FILE_ATTRIBUTE_INTEGRITY_STREAM, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED,
+        FILE_ATTRIBUTE_NO_SCRUB_DATA, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_PINNED,
+        FILE_ATTRIBUTE_READONLY, FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
+        FILE_ATTRIBUTE_RECALL_ON_OPEN, FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_SPARSE_FILE,
+        FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_TEMPORARY, FILE_ATTRIBUTE_UNPINNED,
+        FILE_ATTRIBUTE_VIRTUAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY,
+        FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_READ_EA, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA,
+        PSECURITY_DESCRIPTOR, READ_CONTROL, SECURITY_DESCRIPTOR, SYNCHRONIZE, WRITE_DAC,
+        WRITE_OWNER,
+    };
+    /// Wrapper around [File Access Rights Constants](https://docs.microsoft.com/en-us/windows/win32/fileio/file-access-rights-constants)
+    pub struct Access {
+        bits: u32,
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::marker::Copy for Access {}
+    impl ::core::marker::StructuralPartialEq for Access {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialEq for Access {
+        #[inline]
+        fn eq(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) == (*__self_1_0),
+                },
+            }
+        }
+        #[inline]
+        fn ne(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) != (*__self_1_0),
+                },
+            }
+        }
+    }
+    impl ::core::marker::StructuralEq for Access {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Eq for Access {
+        #[inline]
+        #[doc(hidden)]
+        fn assert_receiver_is_total_eq(&self) -> () {
+            {
+                let _: ::core::cmp::AssertParamIsEq<u32>;
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::clone::Clone for Access {
+        #[inline]
+        fn clone(&self) -> Access {
+            {
+                let _: ::core::clone::AssertParamIsClone<u32>;
+                *self
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialOrd for Access {
+        #[inline]
+        fn partial_cmp(&self, other: &Access) -> ::core::option::Option<::core::cmp::Ordering> {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0))
+                    {
+                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
+                            ::core::option::Option::Some(::core::cmp::Ordering::Equal)
+                        }
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+        #[inline]
+        fn lt(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) == ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn le(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) != ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn gt(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) == ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn ge(&self, other: &Access) -> bool {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) != ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Ord for Access {
+        #[inline]
+        fn cmp(&self, other: &Access) -> ::core::cmp::Ordering {
+            match *other {
+                Access {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Access {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::Ord::cmp(&(*__self_0_0), &(*__self_1_0)) {
+                        ::core::cmp::Ordering::Equal => ::core::cmp::Ordering::Equal,
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::hash::Hash for Access {
+        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+            match *self {
+                Access {
+                    bits: ref __self_0_0,
+                } => ::core::hash::Hash::hash(&(*__self_0_0), state),
+            }
+        }
+    }
+    impl ::bitflags::_core::fmt::Debug for Access {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                #[inline]
+                fn DELETE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn READ_DATA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn READ_ATTRIBUTES(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn READ_EA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn READ_CONTROL(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_DATA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_ATTRIBUTES(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_EA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_DAC(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_OWNER(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn APPEND_DATA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SYNCHRONIZE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn LIST_DIR(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn ADD_FILE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn ADD_DIR(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn GENERIC_READ(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn GENERIC_WRITE(&self) -> bool {
+                    false
+                }
+            }
+            impl __BitFlags for Access {
+                #[allow(deprecated)]
+                #[inline]
+                fn DELETE(&self) -> bool {
+                    if Self::DELETE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DELETE.bits == Self::DELETE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn READ_DATA(&self) -> bool {
+                    if Self::READ_DATA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READ_DATA.bits == Self::READ_DATA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn READ_ATTRIBUTES(&self) -> bool {
+                    if Self::READ_ATTRIBUTES.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READ_ATTRIBUTES.bits == Self::READ_ATTRIBUTES.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn READ_EA(&self) -> bool {
+                    if Self::READ_EA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READ_EA.bits == Self::READ_EA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn READ_CONTROL(&self) -> bool {
+                    if Self::READ_CONTROL.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READ_CONTROL.bits == Self::READ_CONTROL.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_DATA(&self) -> bool {
+                    if Self::WRITE_DATA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_DATA.bits == Self::WRITE_DATA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_ATTRIBUTES(&self) -> bool {
+                    if Self::WRITE_ATTRIBUTES.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_ATTRIBUTES.bits == Self::WRITE_ATTRIBUTES.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_EA(&self) -> bool {
+                    if Self::WRITE_EA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_EA.bits == Self::WRITE_EA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_DAC(&self) -> bool {
+                    if Self::WRITE_DAC.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_DAC.bits == Self::WRITE_DAC.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_OWNER(&self) -> bool {
+                    if Self::WRITE_OWNER.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_OWNER.bits == Self::WRITE_OWNER.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn APPEND_DATA(&self) -> bool {
+                    if Self::APPEND_DATA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::APPEND_DATA.bits == Self::APPEND_DATA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SYNCHRONIZE(&self) -> bool {
+                    if Self::SYNCHRONIZE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SYNCHRONIZE.bits == Self::SYNCHRONIZE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn LIST_DIR(&self) -> bool {
+                    if Self::LIST_DIR.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::LIST_DIR.bits == Self::LIST_DIR.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn ADD_FILE(&self) -> bool {
+                    if Self::ADD_FILE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::ADD_FILE.bits == Self::ADD_FILE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn ADD_DIR(&self) -> bool {
+                    if Self::ADD_DIR.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::ADD_DIR.bits == Self::ADD_DIR.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn GENERIC_READ(&self) -> bool {
+                    if Self::GENERIC_READ.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::GENERIC_READ.bits == Self::GENERIC_READ.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn GENERIC_WRITE(&self) -> bool {
+                    if Self::GENERIC_WRITE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::GENERIC_WRITE.bits == Self::GENERIC_WRITE.bits
+                    }
+                }
+            }
+            let mut first = true;
+            if <Access as __BitFlags>::DELETE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DELETE")?;
+            }
+            if <Access as __BitFlags>::READ_DATA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READ_DATA")?;
+            }
+            if <Access as __BitFlags>::READ_ATTRIBUTES(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READ_ATTRIBUTES")?;
+            }
+            if <Access as __BitFlags>::READ_EA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READ_EA")?;
+            }
+            if <Access as __BitFlags>::READ_CONTROL(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READ_CONTROL")?;
+            }
+            if <Access as __BitFlags>::WRITE_DATA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_DATA")?;
+            }
+            if <Access as __BitFlags>::WRITE_ATTRIBUTES(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_ATTRIBUTES")?;
+            }
+            if <Access as __BitFlags>::WRITE_EA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_EA")?;
+            }
+            if <Access as __BitFlags>::WRITE_DAC(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_DAC")?;
+            }
+            if <Access as __BitFlags>::WRITE_OWNER(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_OWNER")?;
+            }
+            if <Access as __BitFlags>::APPEND_DATA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("APPEND_DATA")?;
+            }
+            if <Access as __BitFlags>::SYNCHRONIZE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SYNCHRONIZE")?;
+            }
+            if <Access as __BitFlags>::LIST_DIR(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("LIST_DIR")?;
+            }
+            if <Access as __BitFlags>::ADD_FILE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("ADD_FILE")?;
+            }
+            if <Access as __BitFlags>::ADD_DIR(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("ADD_DIR")?;
+            }
+            if <Access as __BitFlags>::GENERIC_READ(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("GENERIC_READ")?;
+            }
+            if <Access as __BitFlags>::GENERIC_WRITE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("GENERIC_WRITE")?;
+            }
+            let extra_bits = self.bits & !Access::all().bits();
+            if extra_bits != 0 {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("0x")?;
+                ::bitflags::_core::fmt::LowerHex::fmt(&extra_bits, f)?;
+            }
+            if first {
+                f.write_str("(empty)")?;
+            }
+            Ok(())
+        }
+    }
+    impl ::bitflags::_core::fmt::Binary for Access {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Binary::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::Octal for Access {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Octal::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::LowerHex for Access {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::LowerHex::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::UpperHex for Access {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::UpperHex::fmt(&self.bits, f)
+        }
+    }
+    #[allow(dead_code)]
+    impl Access {
+        pub const DELETE: Access = Access {
+            bits: winapi::um::winnt::DELETE,
+        };
+        pub const READ_DATA: Access = Access {
+            bits: FILE_READ_DATA,
+        };
+        pub const READ_ATTRIBUTES: Access = Access {
+            bits: FILE_READ_ATTRIBUTES,
+        };
+        pub const READ_EA: Access = Access { bits: FILE_READ_EA };
+        pub const READ_CONTROL: Access = Access { bits: READ_CONTROL };
+        pub const WRITE_DATA: Access = Access {
+            bits: FILE_WRITE_DATA,
+        };
+        pub const WRITE_ATTRIBUTES: Access = Access {
+            bits: FILE_WRITE_ATTRIBUTES,
+        };
+        pub const WRITE_EA: Access = Access {
+            bits: FILE_WRITE_EA,
+        };
+        pub const WRITE_DAC: Access = Access { bits: WRITE_DAC };
+        pub const WRITE_OWNER: Access = Access { bits: WRITE_OWNER };
+        pub const APPEND_DATA: Access = Access {
+            bits: FILE_APPEND_DATA,
+        };
+        pub const SYNCHRONIZE: Access = Access { bits: SYNCHRONIZE };
+        pub const LIST_DIR: Access = Access {
+            bits: FILE_LIST_DIRECTORY,
+        };
+        pub const ADD_FILE: Access = Access {
+            bits: FILE_ADD_FILE,
+        };
+        pub const ADD_DIR: Access = Access {
+            bits: FILE_ADD_SUBDIRECTORY,
+        };
+        pub const GENERIC_READ: Access = Access {
+            bits: FILE_GENERIC_READ,
+        };
+        pub const GENERIC_WRITE: Access = Access {
+            bits: FILE_GENERIC_WRITE,
+        };
+        /// Returns an empty set of flags
+        #[inline]
+        pub const fn empty() -> Access {
+            Access { bits: 0 }
+        }
+        /// Returns the set containing all flags.
+        #[inline]
+        pub const fn all() -> Access {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                const DELETE: u32 = 0;
+                const READ_DATA: u32 = 0;
+                const READ_ATTRIBUTES: u32 = 0;
+                const READ_EA: u32 = 0;
+                const READ_CONTROL: u32 = 0;
+                const WRITE_DATA: u32 = 0;
+                const WRITE_ATTRIBUTES: u32 = 0;
+                const WRITE_EA: u32 = 0;
+                const WRITE_DAC: u32 = 0;
+                const WRITE_OWNER: u32 = 0;
+                const APPEND_DATA: u32 = 0;
+                const SYNCHRONIZE: u32 = 0;
+                const LIST_DIR: u32 = 0;
+                const ADD_FILE: u32 = 0;
+                const ADD_DIR: u32 = 0;
+                const GENERIC_READ: u32 = 0;
+                const GENERIC_WRITE: u32 = 0;
+            }
+            impl __BitFlags for Access {
+                #[allow(deprecated)]
+                const DELETE: u32 = Self::DELETE.bits;
+                #[allow(deprecated)]
+                const READ_DATA: u32 = Self::READ_DATA.bits;
+                #[allow(deprecated)]
+                const READ_ATTRIBUTES: u32 = Self::READ_ATTRIBUTES.bits;
+                #[allow(deprecated)]
+                const READ_EA: u32 = Self::READ_EA.bits;
+                #[allow(deprecated)]
+                const READ_CONTROL: u32 = Self::READ_CONTROL.bits;
+                #[allow(deprecated)]
+                const WRITE_DATA: u32 = Self::WRITE_DATA.bits;
+                #[allow(deprecated)]
+                const WRITE_ATTRIBUTES: u32 = Self::WRITE_ATTRIBUTES.bits;
+                #[allow(deprecated)]
+                const WRITE_EA: u32 = Self::WRITE_EA.bits;
+                #[allow(deprecated)]
+                const WRITE_DAC: u32 = Self::WRITE_DAC.bits;
+                #[allow(deprecated)]
+                const WRITE_OWNER: u32 = Self::WRITE_OWNER.bits;
+                #[allow(deprecated)]
+                const APPEND_DATA: u32 = Self::APPEND_DATA.bits;
+                #[allow(deprecated)]
+                const SYNCHRONIZE: u32 = Self::SYNCHRONIZE.bits;
+                #[allow(deprecated)]
+                const LIST_DIR: u32 = Self::LIST_DIR.bits;
+                #[allow(deprecated)]
+                const ADD_FILE: u32 = Self::ADD_FILE.bits;
+                #[allow(deprecated)]
+                const ADD_DIR: u32 = Self::ADD_DIR.bits;
+                #[allow(deprecated)]
+                const GENERIC_READ: u32 = Self::GENERIC_READ.bits;
+                #[allow(deprecated)]
+                const GENERIC_WRITE: u32 = Self::GENERIC_WRITE.bits;
+            }
+            Access {
+                bits: <Access as __BitFlags>::DELETE
+                    | <Access as __BitFlags>::READ_DATA
+                    | <Access as __BitFlags>::READ_ATTRIBUTES
+                    | <Access as __BitFlags>::READ_EA
+                    | <Access as __BitFlags>::READ_CONTROL
+                    | <Access as __BitFlags>::WRITE_DATA
+                    | <Access as __BitFlags>::WRITE_ATTRIBUTES
+                    | <Access as __BitFlags>::WRITE_EA
+                    | <Access as __BitFlags>::WRITE_DAC
+                    | <Access as __BitFlags>::WRITE_OWNER
+                    | <Access as __BitFlags>::APPEND_DATA
+                    | <Access as __BitFlags>::SYNCHRONIZE
+                    | <Access as __BitFlags>::LIST_DIR
+                    | <Access as __BitFlags>::ADD_FILE
+                    | <Access as __BitFlags>::ADD_DIR
+                    | <Access as __BitFlags>::GENERIC_READ
+                    | <Access as __BitFlags>::GENERIC_WRITE,
+            }
+        }
+        /// Returns the raw value of the flags currently stored.
+        #[inline]
+        pub const fn bits(&self) -> u32 {
+            self.bits
+        }
+        /// Convert from underlying bit representation, unless that
+        /// representation contains bits that do not correspond to a flag.
+        #[inline]
+        pub fn from_bits(bits: u32) -> ::bitflags::_core::option::Option<Access> {
+            if (bits & !Access::all().bits()) == 0 {
+                ::bitflags::_core::option::Option::Some(Access { bits })
+            } else {
+                ::bitflags::_core::option::Option::None
+            }
+        }
+        /// Convert from underlying bit representation, dropping any bits
+        /// that do not correspond to flags.
+        #[inline]
+        pub const fn from_bits_truncate(bits: u32) -> Access {
+            Access {
+                bits: bits & Access::all().bits,
+            }
+        }
+        /// Convert from underlying bit representation, preserving all
+        /// bits (even those not corresponding to a defined flag).
+        #[inline]
+        pub const unsafe fn from_bits_unchecked(bits: u32) -> Access {
+            Access { bits }
+        }
+        /// Returns `true` if no flags are currently stored.
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.bits() == Access::empty().bits()
+        }
+        /// Returns `true` if all flags are currently set.
+        #[inline]
+        pub const fn is_all(&self) -> bool {
+            self.bits == Access::all().bits
+        }
+        /// Returns `true` if there are flags common to both `self` and `other`.
+        #[inline]
+        pub const fn intersects(&self, other: Access) -> bool {
+            !Access {
+                bits: self.bits & other.bits,
+            }
+            .is_empty()
+        }
+        /// Returns `true` all of the flags in `other` are contained within `self`.
+        #[inline]
+        pub const fn contains(&self, other: Access) -> bool {
+            (self.bits & other.bits) == other.bits
+        }
+        /// Inserts the specified flags in-place.
+        #[inline]
+        pub fn insert(&mut self, other: Access) {
+            self.bits |= other.bits;
+        }
+        /// Removes the specified flags in-place.
+        #[inline]
+        pub fn remove(&mut self, other: Access) {
+            self.bits &= !other.bits;
+        }
+        /// Toggles the specified flags in-place.
+        #[inline]
+        pub fn toggle(&mut self, other: Access) {
+            self.bits ^= other.bits;
+        }
+        /// Inserts or removes the specified flags depending on the passed value.
+        #[inline]
+        pub fn set(&mut self, other: Access, value: bool) {
+            if value {
+                self.insert(other);
+            } else {
+                self.remove(other);
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOr for Access {
+        type Output = Access;
+        /// Returns the union of the two sets of flags.
+        #[inline]
+        fn bitor(self, other: Access) -> Access {
+            Access {
+                bits: self.bits | other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOrAssign for Access {
+        /// Adds the set of flags.
+        #[inline]
+        fn bitor_assign(&mut self, other: Access) {
+            self.bits |= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitXor for Access {
+        type Output = Access;
+        /// Returns the left flags, but with all the right flags toggled.
+        #[inline]
+        fn bitxor(self, other: Access) -> Access {
+            Access {
+                bits: self.bits ^ other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitXorAssign for Access {
+        /// Toggles the set of flags.
+        #[inline]
+        fn bitxor_assign(&mut self, other: Access) {
+            self.bits ^= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitAnd for Access {
+        type Output = Access;
+        /// Returns the intersection between the two sets of flags.
+        #[inline]
+        fn bitand(self, other: Access) -> Access {
+            Access {
+                bits: self.bits & other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitAndAssign for Access {
+        /// Disables all flags disabled in the set.
+        #[inline]
+        fn bitand_assign(&mut self, other: Access) {
+            self.bits &= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Sub for Access {
+        type Output = Access;
+        /// Returns the set difference of the two sets of flags.
+        #[inline]
+        fn sub(self, other: Access) -> Access {
+            Access {
+                bits: self.bits & !other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::SubAssign for Access {
+        /// Disables all flags enabled in the set.
+        #[inline]
+        fn sub_assign(&mut self, other: Access) {
+            self.bits &= !other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Not for Access {
+        type Output = Access;
+        /// Returns the complement of this set of flags.
+        #[inline]
+        fn not(self) -> Access {
+            Access { bits: !self.bits } & Access::all()
+        }
+    }
+    impl ::bitflags::_core::iter::Extend<Access> for Access {
+        fn extend<T: ::bitflags::_core::iter::IntoIterator<Item = Access>>(&mut self, iterator: T) {
+            for item in iterator {
+                self.insert(item)
+            }
+        }
+    }
+    impl ::bitflags::_core::iter::FromIterator<Access> for Access {
+        fn from_iter<T: ::bitflags::_core::iter::IntoIterator<Item = Access>>(
+            iterator: T,
+        ) -> Access {
+            let mut result = Self::empty();
+            result.extend(iterator);
+            result
+        }
+    }
+    impl Default for Access {
+        fn default() -> Access {
+            Access::GENERIC_READ | Access::GENERIC_WRITE
+        }
+    }
+    pub struct Attribute {
+        bits: u32,
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::marker::Copy for Attribute {}
+    impl ::core::marker::StructuralPartialEq for Attribute {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialEq for Attribute {
+        #[inline]
+        fn eq(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) == (*__self_1_0),
+                },
+            }
+        }
+        #[inline]
+        fn ne(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) != (*__self_1_0),
+                },
+            }
+        }
+    }
+    impl ::core::marker::StructuralEq for Attribute {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Eq for Attribute {
+        #[inline]
+        #[doc(hidden)]
+        fn assert_receiver_is_total_eq(&self) -> () {
+            {
+                let _: ::core::cmp::AssertParamIsEq<u32>;
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::clone::Clone for Attribute {
+        #[inline]
+        fn clone(&self) -> Attribute {
+            {
+                let _: ::core::clone::AssertParamIsClone<u32>;
+                *self
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialOrd for Attribute {
+        #[inline]
+        fn partial_cmp(&self, other: &Attribute) -> ::core::option::Option<::core::cmp::Ordering> {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0))
+                    {
+                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
+                            ::core::option::Option::Some(::core::cmp::Ordering::Equal)
+                        }
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+        #[inline]
+        fn lt(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) == ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn le(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) != ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn gt(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) == ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn ge(&self, other: &Attribute) -> bool {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) != ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Ord for Attribute {
+        #[inline]
+        fn cmp(&self, other: &Attribute) -> ::core::cmp::Ordering {
+            match *other {
+                Attribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Attribute {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::Ord::cmp(&(*__self_0_0), &(*__self_1_0)) {
+                        ::core::cmp::Ordering::Equal => ::core::cmp::Ordering::Equal,
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::hash::Hash for Attribute {
+        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+            match *self {
+                Attribute {
+                    bits: ref __self_0_0,
+                } => ::core::hash::Hash::hash(&(*__self_0_0), state),
+            }
+        }
+    }
+    impl ::bitflags::_core::fmt::Debug for Attribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                #[inline]
+                fn INHERIT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn PERMANENT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn EXCLUSIVE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn CASE_INSENSITIVE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPENIF(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPENLINK(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn KERNEL_HANDLE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn FORCE_ACCESS_CHECK(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn IGNORE_IMPERSONATED_DEVICEMAP(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn DONT_REPARSE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn VALID_ATTRIBUTES(&self) -> bool {
+                    false
+                }
+            }
+            impl __BitFlags for Attribute {
+                #[allow(deprecated)]
+                #[inline]
+                fn INHERIT(&self) -> bool {
+                    if Self::INHERIT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::INHERIT.bits == Self::INHERIT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn PERMANENT(&self) -> bool {
+                    if Self::PERMANENT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::PERMANENT.bits == Self::PERMANENT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn EXCLUSIVE(&self) -> bool {
+                    if Self::EXCLUSIVE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::EXCLUSIVE.bits == Self::EXCLUSIVE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn CASE_INSENSITIVE(&self) -> bool {
+                    if Self::CASE_INSENSITIVE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::CASE_INSENSITIVE.bits == Self::CASE_INSENSITIVE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPENIF(&self) -> bool {
+                    if Self::OPENIF.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPENIF.bits == Self::OPENIF.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPENLINK(&self) -> bool {
+                    if Self::OPENLINK.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPENLINK.bits == Self::OPENLINK.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn KERNEL_HANDLE(&self) -> bool {
+                    if Self::KERNEL_HANDLE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::KERNEL_HANDLE.bits == Self::KERNEL_HANDLE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn FORCE_ACCESS_CHECK(&self) -> bool {
+                    if Self::FORCE_ACCESS_CHECK.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::FORCE_ACCESS_CHECK.bits == Self::FORCE_ACCESS_CHECK.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn IGNORE_IMPERSONATED_DEVICEMAP(&self) -> bool {
+                    if Self::IGNORE_IMPERSONATED_DEVICEMAP.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::IGNORE_IMPERSONATED_DEVICEMAP.bits
+                            == Self::IGNORE_IMPERSONATED_DEVICEMAP.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn DONT_REPARSE(&self) -> bool {
+                    if Self::DONT_REPARSE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DONT_REPARSE.bits == Self::DONT_REPARSE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn VALID_ATTRIBUTES(&self) -> bool {
+                    if Self::VALID_ATTRIBUTES.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::VALID_ATTRIBUTES.bits == Self::VALID_ATTRIBUTES.bits
+                    }
+                }
+            }
+            let mut first = true;
+            if <Attribute as __BitFlags>::INHERIT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("INHERIT")?;
+            }
+            if <Attribute as __BitFlags>::PERMANENT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("PERMANENT")?;
+            }
+            if <Attribute as __BitFlags>::EXCLUSIVE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("EXCLUSIVE")?;
+            }
+            if <Attribute as __BitFlags>::CASE_INSENSITIVE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("CASE_INSENSITIVE")?;
+            }
+            if <Attribute as __BitFlags>::OPENIF(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPENIF")?;
+            }
+            if <Attribute as __BitFlags>::OPENLINK(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPENLINK")?;
+            }
+            if <Attribute as __BitFlags>::KERNEL_HANDLE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("KERNEL_HANDLE")?;
+            }
+            if <Attribute as __BitFlags>::FORCE_ACCESS_CHECK(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("FORCE_ACCESS_CHECK")?;
+            }
+            if <Attribute as __BitFlags>::IGNORE_IMPERSONATED_DEVICEMAP(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("IGNORE_IMPERSONATED_DEVICEMAP")?;
+            }
+            if <Attribute as __BitFlags>::DONT_REPARSE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DONT_REPARSE")?;
+            }
+            if <Attribute as __BitFlags>::VALID_ATTRIBUTES(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("VALID_ATTRIBUTES")?;
+            }
+            let extra_bits = self.bits & !Attribute::all().bits();
+            if extra_bits != 0 {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("0x")?;
+                ::bitflags::_core::fmt::LowerHex::fmt(&extra_bits, f)?;
+            }
+            if first {
+                f.write_str("(empty)")?;
+            }
+            Ok(())
+        }
+    }
+    impl ::bitflags::_core::fmt::Binary for Attribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Binary::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::Octal for Attribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Octal::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::LowerHex for Attribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::LowerHex::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::UpperHex for Attribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::UpperHex::fmt(&self.bits, f)
+        }
+    }
+    #[allow(dead_code)]
+    impl Attribute {
+        pub const INHERIT: Attribute = Attribute { bits: OBJ_INHERIT };
+        pub const PERMANENT: Attribute = Attribute {
+            bits: OBJ_PERMANENT,
+        };
+        pub const EXCLUSIVE: Attribute = Attribute {
+            bits: OBJ_EXCLUSIVE,
+        };
+        pub const CASE_INSENSITIVE: Attribute = Attribute {
+            bits: OBJ_CASE_INSENSITIVE,
+        };
+        pub const OPENIF: Attribute = Attribute { bits: OBJ_OPENIF };
+        pub const OPENLINK: Attribute = Attribute { bits: OBJ_OPENLINK };
+        pub const KERNEL_HANDLE: Attribute = Attribute {
+            bits: OBJ_KERNEL_HANDLE,
+        };
+        pub const FORCE_ACCESS_CHECK: Attribute = Attribute {
+            bits: OBJ_FORCE_ACCESS_CHECK,
+        };
+        pub const IGNORE_IMPERSONATED_DEVICEMAP: Attribute = Attribute {
+            bits: OBJ_IGNORE_IMPERSONATED_DEVICEMAP,
+        };
+        pub const DONT_REPARSE: Attribute = Attribute {
+            bits: OBJ_DONT_REPARSE,
+        };
+        pub const VALID_ATTRIBUTES: Attribute = Attribute {
+            bits: OBJ_VALID_ATTRIBUTES,
+        };
+        /// Returns an empty set of flags
+        #[inline]
+        pub const fn empty() -> Attribute {
+            Attribute { bits: 0 }
+        }
+        /// Returns the set containing all flags.
+        #[inline]
+        pub const fn all() -> Attribute {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                const INHERIT: u32 = 0;
+                const PERMANENT: u32 = 0;
+                const EXCLUSIVE: u32 = 0;
+                const CASE_INSENSITIVE: u32 = 0;
+                const OPENIF: u32 = 0;
+                const OPENLINK: u32 = 0;
+                const KERNEL_HANDLE: u32 = 0;
+                const FORCE_ACCESS_CHECK: u32 = 0;
+                const IGNORE_IMPERSONATED_DEVICEMAP: u32 = 0;
+                const DONT_REPARSE: u32 = 0;
+                const VALID_ATTRIBUTES: u32 = 0;
+            }
+            impl __BitFlags for Attribute {
+                #[allow(deprecated)]
+                const INHERIT: u32 = Self::INHERIT.bits;
+                #[allow(deprecated)]
+                const PERMANENT: u32 = Self::PERMANENT.bits;
+                #[allow(deprecated)]
+                const EXCLUSIVE: u32 = Self::EXCLUSIVE.bits;
+                #[allow(deprecated)]
+                const CASE_INSENSITIVE: u32 = Self::CASE_INSENSITIVE.bits;
+                #[allow(deprecated)]
+                const OPENIF: u32 = Self::OPENIF.bits;
+                #[allow(deprecated)]
+                const OPENLINK: u32 = Self::OPENLINK.bits;
+                #[allow(deprecated)]
+                const KERNEL_HANDLE: u32 = Self::KERNEL_HANDLE.bits;
+                #[allow(deprecated)]
+                const FORCE_ACCESS_CHECK: u32 = Self::FORCE_ACCESS_CHECK.bits;
+                #[allow(deprecated)]
+                const IGNORE_IMPERSONATED_DEVICEMAP: u32 = Self::IGNORE_IMPERSONATED_DEVICEMAP.bits;
+                #[allow(deprecated)]
+                const DONT_REPARSE: u32 = Self::DONT_REPARSE.bits;
+                #[allow(deprecated)]
+                const VALID_ATTRIBUTES: u32 = Self::VALID_ATTRIBUTES.bits;
+            }
+            Attribute {
+                bits: <Attribute as __BitFlags>::INHERIT
+                    | <Attribute as __BitFlags>::PERMANENT
+                    | <Attribute as __BitFlags>::EXCLUSIVE
+                    | <Attribute as __BitFlags>::CASE_INSENSITIVE
+                    | <Attribute as __BitFlags>::OPENIF
+                    | <Attribute as __BitFlags>::OPENLINK
+                    | <Attribute as __BitFlags>::KERNEL_HANDLE
+                    | <Attribute as __BitFlags>::FORCE_ACCESS_CHECK
+                    | <Attribute as __BitFlags>::IGNORE_IMPERSONATED_DEVICEMAP
+                    | <Attribute as __BitFlags>::DONT_REPARSE
+                    | <Attribute as __BitFlags>::VALID_ATTRIBUTES,
+            }
+        }
+        /// Returns the raw value of the flags currently stored.
+        #[inline]
+        pub const fn bits(&self) -> u32 {
+            self.bits
+        }
+        /// Convert from underlying bit representation, unless that
+        /// representation contains bits that do not correspond to a flag.
+        #[inline]
+        pub fn from_bits(bits: u32) -> ::bitflags::_core::option::Option<Attribute> {
+            if (bits & !Attribute::all().bits()) == 0 {
+                ::bitflags::_core::option::Option::Some(Attribute { bits })
+            } else {
+                ::bitflags::_core::option::Option::None
+            }
+        }
+        /// Convert from underlying bit representation, dropping any bits
+        /// that do not correspond to flags.
+        #[inline]
+        pub const fn from_bits_truncate(bits: u32) -> Attribute {
+            Attribute {
+                bits: bits & Attribute::all().bits,
+            }
+        }
+        /// Convert from underlying bit representation, preserving all
+        /// bits (even those not corresponding to a defined flag).
+        #[inline]
+        pub const unsafe fn from_bits_unchecked(bits: u32) -> Attribute {
+            Attribute { bits }
+        }
+        /// Returns `true` if no flags are currently stored.
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.bits() == Attribute::empty().bits()
+        }
+        /// Returns `true` if all flags are currently set.
+        #[inline]
+        pub const fn is_all(&self) -> bool {
+            self.bits == Attribute::all().bits
+        }
+        /// Returns `true` if there are flags common to both `self` and `other`.
+        #[inline]
+        pub const fn intersects(&self, other: Attribute) -> bool {
+            !Attribute {
+                bits: self.bits & other.bits,
+            }
+            .is_empty()
+        }
+        /// Returns `true` all of the flags in `other` are contained within `self`.
+        #[inline]
+        pub const fn contains(&self, other: Attribute) -> bool {
+            (self.bits & other.bits) == other.bits
+        }
+        /// Inserts the specified flags in-place.
+        #[inline]
+        pub fn insert(&mut self, other: Attribute) {
+            self.bits |= other.bits;
+        }
+        /// Removes the specified flags in-place.
+        #[inline]
+        pub fn remove(&mut self, other: Attribute) {
+            self.bits &= !other.bits;
+        }
+        /// Toggles the specified flags in-place.
+        #[inline]
+        pub fn toggle(&mut self, other: Attribute) {
+            self.bits ^= other.bits;
+        }
+        /// Inserts or removes the specified flags depending on the passed value.
+        #[inline]
+        pub fn set(&mut self, other: Attribute, value: bool) {
+            if value {
+                self.insert(other);
+            } else {
+                self.remove(other);
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOr for Attribute {
+        type Output = Attribute;
+        /// Returns the union of the two sets of flags.
+        #[inline]
+        fn bitor(self, other: Attribute) -> Attribute {
+            Attribute {
+                bits: self.bits | other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOrAssign for Attribute {
+        /// Adds the set of flags.
+        #[inline]
+        fn bitor_assign(&mut self, other: Attribute) {
+            self.bits |= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitXor for Attribute {
+        type Output = Attribute;
+        /// Returns the left flags, but with all the right flags toggled.
+        #[inline]
+        fn bitxor(self, other: Attribute) -> Attribute {
+            Attribute {
+                bits: self.bits ^ other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitXorAssign for Attribute {
+        /// Toggles the set of flags.
+        #[inline]
+        fn bitxor_assign(&mut self, other: Attribute) {
+            self.bits ^= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitAnd for Attribute {
+        type Output = Attribute;
+        /// Returns the intersection between the two sets of flags.
+        #[inline]
+        fn bitand(self, other: Attribute) -> Attribute {
+            Attribute {
+                bits: self.bits & other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitAndAssign for Attribute {
+        /// Disables all flags disabled in the set.
+        #[inline]
+        fn bitand_assign(&mut self, other: Attribute) {
+            self.bits &= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Sub for Attribute {
+        type Output = Attribute;
+        /// Returns the set difference of the two sets of flags.
+        #[inline]
+        fn sub(self, other: Attribute) -> Attribute {
+            Attribute {
+                bits: self.bits & !other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::SubAssign for Attribute {
+        /// Disables all flags enabled in the set.
+        #[inline]
+        fn sub_assign(&mut self, other: Attribute) {
+            self.bits &= !other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Not for Attribute {
+        type Output = Attribute;
+        /// Returns the complement of this set of flags.
+        #[inline]
+        fn not(self) -> Attribute {
+            Attribute { bits: !self.bits } & Attribute::all()
+        }
+    }
+    impl ::bitflags::_core::iter::Extend<Attribute> for Attribute {
+        fn extend<T: ::bitflags::_core::iter::IntoIterator<Item = Attribute>>(
+            &mut self,
+            iterator: T,
+        ) {
+            for item in iterator {
+                self.insert(item)
+            }
+        }
+    }
+    impl ::bitflags::_core::iter::FromIterator<Attribute> for Attribute {
+        fn from_iter<T: ::bitflags::_core::iter::IntoIterator<Item = Attribute>>(
+            iterator: T,
+        ) -> Attribute {
+            let mut result = Self::empty();
+            result.extend(iterator);
+            result
+        }
+    }
+    impl Default for Attribute {
+        fn default() -> Attribute {
+            Attribute::CASE_INSENSITIVE
+        }
+    }
+    /// Wrapper around [File Attribute Constants](https://docs.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants)
+    pub struct FileAttribute {
+        bits: u32,
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::marker::Copy for FileAttribute {}
+    impl ::core::marker::StructuralPartialEq for FileAttribute {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialEq for FileAttribute {
+        #[inline]
+        fn eq(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) == (*__self_1_0),
+                },
+            }
+        }
+        #[inline]
+        fn ne(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) != (*__self_1_0),
+                },
+            }
+        }
+    }
+    impl ::core::marker::StructuralEq for FileAttribute {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Eq for FileAttribute {
+        #[inline]
+        #[doc(hidden)]
+        fn assert_receiver_is_total_eq(&self) -> () {
+            {
+                let _: ::core::cmp::AssertParamIsEq<u32>;
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::clone::Clone for FileAttribute {
+        #[inline]
+        fn clone(&self) -> FileAttribute {
+            {
+                let _: ::core::clone::AssertParamIsClone<u32>;
+                *self
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialOrd for FileAttribute {
+        #[inline]
+        fn partial_cmp(
+            &self,
+            other: &FileAttribute,
+        ) -> ::core::option::Option<::core::cmp::Ordering> {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0))
+                    {
+                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
+                            ::core::option::Option::Some(::core::cmp::Ordering::Equal)
+                        }
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+        #[inline]
+        fn lt(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) == ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn le(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) != ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn gt(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) == ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn ge(&self, other: &FileAttribute) -> bool {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) != ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Ord for FileAttribute {
+        #[inline]
+        fn cmp(&self, other: &FileAttribute) -> ::core::cmp::Ordering {
+            match *other {
+                FileAttribute {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    FileAttribute {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::Ord::cmp(&(*__self_0_0), &(*__self_1_0)) {
+                        ::core::cmp::Ordering::Equal => ::core::cmp::Ordering::Equal,
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::hash::Hash for FileAttribute {
+        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+            match *self {
+                FileAttribute {
+                    bits: ref __self_0_0,
+                } => ::core::hash::Hash::hash(&(*__self_0_0), state),
+            }
+        }
+    }
+    impl ::bitflags::_core::fmt::Debug for FileAttribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                #[inline]
+                fn READONLY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn HIDDEN(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SYSTEM(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn DIRECTORY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn ARCHIVE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn DEVICE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NORMAL(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn TEMPORARY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SPARSE_FILE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn REPARSE_POINT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn COMPRESSED(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OFFLINE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NOT_CONTENT_INDEXED(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn ENCRYPTED(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn INTEGRITY_STREAM(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn VIRTUAL(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NO_SCRUB_DATA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn EA(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn PINNED(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn UNPINNED(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn RECALL_ON_OPEN(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn RECALL_ON_DATA_ACCESS(&self) -> bool {
+                    false
+                }
+            }
+            impl __BitFlags for FileAttribute {
+                #[allow(deprecated)]
+                #[inline]
+                fn READONLY(&self) -> bool {
+                    if Self::READONLY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READONLY.bits == Self::READONLY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn HIDDEN(&self) -> bool {
+                    if Self::HIDDEN.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::HIDDEN.bits == Self::HIDDEN.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SYSTEM(&self) -> bool {
+                    if Self::SYSTEM.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SYSTEM.bits == Self::SYSTEM.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn DIRECTORY(&self) -> bool {
+                    if Self::DIRECTORY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DIRECTORY.bits == Self::DIRECTORY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn ARCHIVE(&self) -> bool {
+                    if Self::ARCHIVE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::ARCHIVE.bits == Self::ARCHIVE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn DEVICE(&self) -> bool {
+                    if Self::DEVICE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DEVICE.bits == Self::DEVICE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NORMAL(&self) -> bool {
+                    if Self::NORMAL.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NORMAL.bits == Self::NORMAL.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn TEMPORARY(&self) -> bool {
+                    if Self::TEMPORARY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::TEMPORARY.bits == Self::TEMPORARY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SPARSE_FILE(&self) -> bool {
+                    if Self::SPARSE_FILE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SPARSE_FILE.bits == Self::SPARSE_FILE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn REPARSE_POINT(&self) -> bool {
+                    if Self::REPARSE_POINT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::REPARSE_POINT.bits == Self::REPARSE_POINT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn COMPRESSED(&self) -> bool {
+                    if Self::COMPRESSED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::COMPRESSED.bits == Self::COMPRESSED.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OFFLINE(&self) -> bool {
+                    if Self::OFFLINE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OFFLINE.bits == Self::OFFLINE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NOT_CONTENT_INDEXED(&self) -> bool {
+                    if Self::NOT_CONTENT_INDEXED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NOT_CONTENT_INDEXED.bits == Self::NOT_CONTENT_INDEXED.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn ENCRYPTED(&self) -> bool {
+                    if Self::ENCRYPTED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::ENCRYPTED.bits == Self::ENCRYPTED.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn INTEGRITY_STREAM(&self) -> bool {
+                    if Self::INTEGRITY_STREAM.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::INTEGRITY_STREAM.bits == Self::INTEGRITY_STREAM.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn VIRTUAL(&self) -> bool {
+                    if Self::VIRTUAL.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::VIRTUAL.bits == Self::VIRTUAL.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NO_SCRUB_DATA(&self) -> bool {
+                    if Self::NO_SCRUB_DATA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NO_SCRUB_DATA.bits == Self::NO_SCRUB_DATA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn EA(&self) -> bool {
+                    if Self::EA.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::EA.bits == Self::EA.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn PINNED(&self) -> bool {
+                    if Self::PINNED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::PINNED.bits == Self::PINNED.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn UNPINNED(&self) -> bool {
+                    if Self::UNPINNED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::UNPINNED.bits == Self::UNPINNED.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn RECALL_ON_OPEN(&self) -> bool {
+                    if Self::RECALL_ON_OPEN.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::RECALL_ON_OPEN.bits == Self::RECALL_ON_OPEN.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn RECALL_ON_DATA_ACCESS(&self) -> bool {
+                    if Self::RECALL_ON_DATA_ACCESS.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::RECALL_ON_DATA_ACCESS.bits
+                            == Self::RECALL_ON_DATA_ACCESS.bits
+                    }
+                }
+            }
+            let mut first = true;
+            if <FileAttribute as __BitFlags>::READONLY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READONLY")?;
+            }
+            if <FileAttribute as __BitFlags>::HIDDEN(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("HIDDEN")?;
+            }
+            if <FileAttribute as __BitFlags>::SYSTEM(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SYSTEM")?;
+            }
+            if <FileAttribute as __BitFlags>::DIRECTORY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DIRECTORY")?;
+            }
+            if <FileAttribute as __BitFlags>::ARCHIVE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("ARCHIVE")?;
+            }
+            if <FileAttribute as __BitFlags>::DEVICE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DEVICE")?;
+            }
+            if <FileAttribute as __BitFlags>::NORMAL(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NORMAL")?;
+            }
+            if <FileAttribute as __BitFlags>::TEMPORARY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("TEMPORARY")?;
+            }
+            if <FileAttribute as __BitFlags>::SPARSE_FILE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SPARSE_FILE")?;
+            }
+            if <FileAttribute as __BitFlags>::REPARSE_POINT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("REPARSE_POINT")?;
+            }
+            if <FileAttribute as __BitFlags>::COMPRESSED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("COMPRESSED")?;
+            }
+            if <FileAttribute as __BitFlags>::OFFLINE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OFFLINE")?;
+            }
+            if <FileAttribute as __BitFlags>::NOT_CONTENT_INDEXED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NOT_CONTENT_INDEXED")?;
+            }
+            if <FileAttribute as __BitFlags>::ENCRYPTED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("ENCRYPTED")?;
+            }
+            if <FileAttribute as __BitFlags>::INTEGRITY_STREAM(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("INTEGRITY_STREAM")?;
+            }
+            if <FileAttribute as __BitFlags>::VIRTUAL(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("VIRTUAL")?;
+            }
+            if <FileAttribute as __BitFlags>::NO_SCRUB_DATA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NO_SCRUB_DATA")?;
+            }
+            if <FileAttribute as __BitFlags>::EA(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("EA")?;
+            }
+            if <FileAttribute as __BitFlags>::PINNED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("PINNED")?;
+            }
+            if <FileAttribute as __BitFlags>::UNPINNED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("UNPINNED")?;
+            }
+            if <FileAttribute as __BitFlags>::RECALL_ON_OPEN(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("RECALL_ON_OPEN")?;
+            }
+            if <FileAttribute as __BitFlags>::RECALL_ON_DATA_ACCESS(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("RECALL_ON_DATA_ACCESS")?;
+            }
+            let extra_bits = self.bits & !FileAttribute::all().bits();
+            if extra_bits != 0 {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("0x")?;
+                ::bitflags::_core::fmt::LowerHex::fmt(&extra_bits, f)?;
+            }
+            if first {
+                f.write_str("(empty)")?;
+            }
+            Ok(())
+        }
+    }
+    impl ::bitflags::_core::fmt::Binary for FileAttribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Binary::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::Octal for FileAttribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Octal::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::LowerHex for FileAttribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::LowerHex::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::UpperHex for FileAttribute {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::UpperHex::fmt(&self.bits, f)
+        }
+    }
+    #[allow(dead_code)]
+    impl FileAttribute {
+        pub const READONLY: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_READONLY,
+        };
+        pub const HIDDEN: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_HIDDEN,
+        };
+        pub const SYSTEM: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_SYSTEM,
+        };
+        pub const DIRECTORY: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_DIRECTORY,
+        };
+        pub const ARCHIVE: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_ARCHIVE,
+        };
+        pub const DEVICE: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_DEVICE,
+        };
+        pub const NORMAL: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_NORMAL,
+        };
+        pub const TEMPORARY: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_TEMPORARY,
+        };
+        pub const SPARSE_FILE: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_SPARSE_FILE,
+        };
+        pub const REPARSE_POINT: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_REPARSE_POINT,
+        };
+        pub const COMPRESSED: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_COMPRESSED,
+        };
+        pub const OFFLINE: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_OFFLINE,
+        };
+        pub const NOT_CONTENT_INDEXED: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_NOT_CONTENT_INDEXED,
+        };
+        pub const ENCRYPTED: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_ENCRYPTED,
+        };
+        pub const INTEGRITY_STREAM: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_INTEGRITY_STREAM,
+        };
+        pub const VIRTUAL: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_VIRTUAL,
+        };
+        pub const NO_SCRUB_DATA: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_NO_SCRUB_DATA,
+        };
+        pub const EA: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_EA,
+        };
+        pub const PINNED: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_PINNED,
+        };
+        pub const UNPINNED: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_UNPINNED,
+        };
+        pub const RECALL_ON_OPEN: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_RECALL_ON_OPEN,
+        };
+        pub const RECALL_ON_DATA_ACCESS: FileAttribute = FileAttribute {
+            bits: FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
+        };
+        /// Returns an empty set of flags
+        #[inline]
+        pub const fn empty() -> FileAttribute {
+            FileAttribute { bits: 0 }
+        }
+        /// Returns the set containing all flags.
+        #[inline]
+        pub const fn all() -> FileAttribute {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                const READONLY: u32 = 0;
+                const HIDDEN: u32 = 0;
+                const SYSTEM: u32 = 0;
+                const DIRECTORY: u32 = 0;
+                const ARCHIVE: u32 = 0;
+                const DEVICE: u32 = 0;
+                const NORMAL: u32 = 0;
+                const TEMPORARY: u32 = 0;
+                const SPARSE_FILE: u32 = 0;
+                const REPARSE_POINT: u32 = 0;
+                const COMPRESSED: u32 = 0;
+                const OFFLINE: u32 = 0;
+                const NOT_CONTENT_INDEXED: u32 = 0;
+                const ENCRYPTED: u32 = 0;
+                const INTEGRITY_STREAM: u32 = 0;
+                const VIRTUAL: u32 = 0;
+                const NO_SCRUB_DATA: u32 = 0;
+                const EA: u32 = 0;
+                const PINNED: u32 = 0;
+                const UNPINNED: u32 = 0;
+                const RECALL_ON_OPEN: u32 = 0;
+                const RECALL_ON_DATA_ACCESS: u32 = 0;
+            }
+            impl __BitFlags for FileAttribute {
+                #[allow(deprecated)]
+                const READONLY: u32 = Self::READONLY.bits;
+                #[allow(deprecated)]
+                const HIDDEN: u32 = Self::HIDDEN.bits;
+                #[allow(deprecated)]
+                const SYSTEM: u32 = Self::SYSTEM.bits;
+                #[allow(deprecated)]
+                const DIRECTORY: u32 = Self::DIRECTORY.bits;
+                #[allow(deprecated)]
+                const ARCHIVE: u32 = Self::ARCHIVE.bits;
+                #[allow(deprecated)]
+                const DEVICE: u32 = Self::DEVICE.bits;
+                #[allow(deprecated)]
+                const NORMAL: u32 = Self::NORMAL.bits;
+                #[allow(deprecated)]
+                const TEMPORARY: u32 = Self::TEMPORARY.bits;
+                #[allow(deprecated)]
+                const SPARSE_FILE: u32 = Self::SPARSE_FILE.bits;
+                #[allow(deprecated)]
+                const REPARSE_POINT: u32 = Self::REPARSE_POINT.bits;
+                #[allow(deprecated)]
+                const COMPRESSED: u32 = Self::COMPRESSED.bits;
+                #[allow(deprecated)]
+                const OFFLINE: u32 = Self::OFFLINE.bits;
+                #[allow(deprecated)]
+                const NOT_CONTENT_INDEXED: u32 = Self::NOT_CONTENT_INDEXED.bits;
+                #[allow(deprecated)]
+                const ENCRYPTED: u32 = Self::ENCRYPTED.bits;
+                #[allow(deprecated)]
+                const INTEGRITY_STREAM: u32 = Self::INTEGRITY_STREAM.bits;
+                #[allow(deprecated)]
+                const VIRTUAL: u32 = Self::VIRTUAL.bits;
+                #[allow(deprecated)]
+                const NO_SCRUB_DATA: u32 = Self::NO_SCRUB_DATA.bits;
+                #[allow(deprecated)]
+                const EA: u32 = Self::EA.bits;
+                #[allow(deprecated)]
+                const PINNED: u32 = Self::PINNED.bits;
+                #[allow(deprecated)]
+                const UNPINNED: u32 = Self::UNPINNED.bits;
+                #[allow(deprecated)]
+                const RECALL_ON_OPEN: u32 = Self::RECALL_ON_OPEN.bits;
+                #[allow(deprecated)]
+                const RECALL_ON_DATA_ACCESS: u32 = Self::RECALL_ON_DATA_ACCESS.bits;
+            }
+            FileAttribute {
+                bits: <FileAttribute as __BitFlags>::READONLY
+                    | <FileAttribute as __BitFlags>::HIDDEN
+                    | <FileAttribute as __BitFlags>::SYSTEM
+                    | <FileAttribute as __BitFlags>::DIRECTORY
+                    | <FileAttribute as __BitFlags>::ARCHIVE
+                    | <FileAttribute as __BitFlags>::DEVICE
+                    | <FileAttribute as __BitFlags>::NORMAL
+                    | <FileAttribute as __BitFlags>::TEMPORARY
+                    | <FileAttribute as __BitFlags>::SPARSE_FILE
+                    | <FileAttribute as __BitFlags>::REPARSE_POINT
+                    | <FileAttribute as __BitFlags>::COMPRESSED
+                    | <FileAttribute as __BitFlags>::OFFLINE
+                    | <FileAttribute as __BitFlags>::NOT_CONTENT_INDEXED
+                    | <FileAttribute as __BitFlags>::ENCRYPTED
+                    | <FileAttribute as __BitFlags>::INTEGRITY_STREAM
+                    | <FileAttribute as __BitFlags>::VIRTUAL
+                    | <FileAttribute as __BitFlags>::NO_SCRUB_DATA
+                    | <FileAttribute as __BitFlags>::EA
+                    | <FileAttribute as __BitFlags>::PINNED
+                    | <FileAttribute as __BitFlags>::UNPINNED
+                    | <FileAttribute as __BitFlags>::RECALL_ON_OPEN
+                    | <FileAttribute as __BitFlags>::RECALL_ON_DATA_ACCESS,
+            }
+        }
+        /// Returns the raw value of the flags currently stored.
+        #[inline]
+        pub const fn bits(&self) -> u32 {
+            self.bits
+        }
+        /// Convert from underlying bit representation, unless that
+        /// representation contains bits that do not correspond to a flag.
+        #[inline]
+        pub fn from_bits(bits: u32) -> ::bitflags::_core::option::Option<FileAttribute> {
+            if (bits & !FileAttribute::all().bits()) == 0 {
+                ::bitflags::_core::option::Option::Some(FileAttribute { bits })
+            } else {
+                ::bitflags::_core::option::Option::None
+            }
+        }
+        /// Convert from underlying bit representation, dropping any bits
+        /// that do not correspond to flags.
+        #[inline]
+        pub const fn from_bits_truncate(bits: u32) -> FileAttribute {
+            FileAttribute {
+                bits: bits & FileAttribute::all().bits,
+            }
+        }
+        /// Convert from underlying bit representation, preserving all
+        /// bits (even those not corresponding to a defined flag).
+        #[inline]
+        pub const unsafe fn from_bits_unchecked(bits: u32) -> FileAttribute {
+            FileAttribute { bits }
+        }
+        /// Returns `true` if no flags are currently stored.
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.bits() == FileAttribute::empty().bits()
+        }
+        /// Returns `true` if all flags are currently set.
+        #[inline]
+        pub const fn is_all(&self) -> bool {
+            self.bits == FileAttribute::all().bits
+        }
+        /// Returns `true` if there are flags common to both `self` and `other`.
+        #[inline]
+        pub const fn intersects(&self, other: FileAttribute) -> bool {
+            !FileAttribute {
+                bits: self.bits & other.bits,
+            }
+            .is_empty()
+        }
+        /// Returns `true` all of the flags in `other` are contained within `self`.
+        #[inline]
+        pub const fn contains(&self, other: FileAttribute) -> bool {
+            (self.bits & other.bits) == other.bits
+        }
+        /// Inserts the specified flags in-place.
+        #[inline]
+        pub fn insert(&mut self, other: FileAttribute) {
+            self.bits |= other.bits;
+        }
+        /// Removes the specified flags in-place.
+        #[inline]
+        pub fn remove(&mut self, other: FileAttribute) {
+            self.bits &= !other.bits;
+        }
+        /// Toggles the specified flags in-place.
+        #[inline]
+        pub fn toggle(&mut self, other: FileAttribute) {
+            self.bits ^= other.bits;
+        }
+        /// Inserts or removes the specified flags depending on the passed value.
+        #[inline]
+        pub fn set(&mut self, other: FileAttribute, value: bool) {
+            if value {
+                self.insert(other);
+            } else {
+                self.remove(other);
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOr for FileAttribute {
+        type Output = FileAttribute;
+        /// Returns the union of the two sets of flags.
+        #[inline]
+        fn bitor(self, other: FileAttribute) -> FileAttribute {
+            FileAttribute {
+                bits: self.bits | other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOrAssign for FileAttribute {
+        /// Adds the set of flags.
+        #[inline]
+        fn bitor_assign(&mut self, other: FileAttribute) {
+            self.bits |= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitXor for FileAttribute {
+        type Output = FileAttribute;
+        /// Returns the left flags, but with all the right flags toggled.
+        #[inline]
+        fn bitxor(self, other: FileAttribute) -> FileAttribute {
+            FileAttribute {
+                bits: self.bits ^ other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitXorAssign for FileAttribute {
+        /// Toggles the set of flags.
+        #[inline]
+        fn bitxor_assign(&mut self, other: FileAttribute) {
+            self.bits ^= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitAnd for FileAttribute {
+        type Output = FileAttribute;
+        /// Returns the intersection between the two sets of flags.
+        #[inline]
+        fn bitand(self, other: FileAttribute) -> FileAttribute {
+            FileAttribute {
+                bits: self.bits & other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitAndAssign for FileAttribute {
+        /// Disables all flags disabled in the set.
+        #[inline]
+        fn bitand_assign(&mut self, other: FileAttribute) {
+            self.bits &= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Sub for FileAttribute {
+        type Output = FileAttribute;
+        /// Returns the set difference of the two sets of flags.
+        #[inline]
+        fn sub(self, other: FileAttribute) -> FileAttribute {
+            FileAttribute {
+                bits: self.bits & !other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::SubAssign for FileAttribute {
+        /// Disables all flags enabled in the set.
+        #[inline]
+        fn sub_assign(&mut self, other: FileAttribute) {
+            self.bits &= !other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Not for FileAttribute {
+        type Output = FileAttribute;
+        /// Returns the complement of this set of flags.
+        #[inline]
+        fn not(self) -> FileAttribute {
+            FileAttribute { bits: !self.bits } & FileAttribute::all()
+        }
+    }
+    impl ::bitflags::_core::iter::Extend<FileAttribute> for FileAttribute {
+        fn extend<T: ::bitflags::_core::iter::IntoIterator<Item = FileAttribute>>(
+            &mut self,
+            iterator: T,
+        ) {
+            for item in iterator {
+                self.insert(item)
+            }
+        }
+    }
+    impl ::bitflags::_core::iter::FromIterator<FileAttribute> for FileAttribute {
+        fn from_iter<T: ::bitflags::_core::iter::IntoIterator<Item = FileAttribute>>(
+            iterator: T,
+        ) -> FileAttribute {
+            let mut result = Self::empty();
+            result.extend(iterator);
+            result
+        }
+    }
+    impl Default for FileAttribute {
+        fn default() -> FileAttribute {
+            FileAttribute::NORMAL
+        }
+    }
+    pub struct ShareAccess {
+        bits: u32,
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::marker::Copy for ShareAccess {}
+    impl ::core::marker::StructuralPartialEq for ShareAccess {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialEq for ShareAccess {
+        #[inline]
+        fn eq(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) == (*__self_1_0),
+                },
+            }
+        }
+        #[inline]
+        fn ne(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) != (*__self_1_0),
+                },
+            }
+        }
+    }
+    impl ::core::marker::StructuralEq for ShareAccess {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Eq for ShareAccess {
+        #[inline]
+        #[doc(hidden)]
+        fn assert_receiver_is_total_eq(&self) -> () {
+            {
+                let _: ::core::cmp::AssertParamIsEq<u32>;
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::clone::Clone for ShareAccess {
+        #[inline]
+        fn clone(&self) -> ShareAccess {
+            {
+                let _: ::core::clone::AssertParamIsClone<u32>;
+                *self
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialOrd for ShareAccess {
+        #[inline]
+        fn partial_cmp(
+            &self,
+            other: &ShareAccess,
+        ) -> ::core::option::Option<::core::cmp::Ordering> {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0))
+                    {
+                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
+                            ::core::option::Option::Some(::core::cmp::Ordering::Equal)
+                        }
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+        #[inline]
+        fn lt(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) == ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn le(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) != ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn gt(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) == ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn ge(&self, other: &ShareAccess) -> bool {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) != ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Ord for ShareAccess {
+        #[inline]
+        fn cmp(&self, other: &ShareAccess) -> ::core::cmp::Ordering {
+            match *other {
+                ShareAccess {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    ShareAccess {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::Ord::cmp(&(*__self_0_0), &(*__self_1_0)) {
+                        ::core::cmp::Ordering::Equal => ::core::cmp::Ordering::Equal,
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::hash::Hash for ShareAccess {
+        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+            match *self {
+                ShareAccess {
+                    bits: ref __self_0_0,
+                } => ::core::hash::Hash::hash(&(*__self_0_0), state),
+            }
+        }
+    }
+    impl ::bitflags::_core::fmt::Debug for ShareAccess {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                #[inline]
+                fn READ(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn DELETE(&self) -> bool {
+                    false
+                }
+            }
+            impl __BitFlags for ShareAccess {
+                #[allow(deprecated)]
+                #[inline]
+                fn READ(&self) -> bool {
+                    if Self::READ.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::READ.bits == Self::READ.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE(&self) -> bool {
+                    if Self::WRITE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE.bits == Self::WRITE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn DELETE(&self) -> bool {
+                    if Self::DELETE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DELETE.bits == Self::DELETE.bits
+                    }
+                }
+            }
+            let mut first = true;
+            if <ShareAccess as __BitFlags>::READ(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("READ")?;
+            }
+            if <ShareAccess as __BitFlags>::WRITE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE")?;
+            }
+            if <ShareAccess as __BitFlags>::DELETE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DELETE")?;
+            }
+            let extra_bits = self.bits & !ShareAccess::all().bits();
+            if extra_bits != 0 {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("0x")?;
+                ::bitflags::_core::fmt::LowerHex::fmt(&extra_bits, f)?;
+            }
+            if first {
+                f.write_str("(empty)")?;
+            }
+            Ok(())
+        }
+    }
+    impl ::bitflags::_core::fmt::Binary for ShareAccess {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Binary::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::Octal for ShareAccess {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Octal::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::LowerHex for ShareAccess {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::LowerHex::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::UpperHex for ShareAccess {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::UpperHex::fmt(&self.bits, f)
+        }
+    }
+    #[allow(dead_code)]
+    impl ShareAccess {
+        pub const READ: ShareAccess = ShareAccess {
+            bits: FILE_SHARE_READ,
+        };
+        pub const WRITE: ShareAccess = ShareAccess {
+            bits: FILE_SHARE_WRITE,
+        };
+        pub const DELETE: ShareAccess = ShareAccess {
+            bits: FILE_SHARE_DELETE,
+        };
+        /// Returns an empty set of flags
+        #[inline]
+        pub const fn empty() -> ShareAccess {
+            ShareAccess { bits: 0 }
+        }
+        /// Returns the set containing all flags.
+        #[inline]
+        pub const fn all() -> ShareAccess {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                const READ: u32 = 0;
+                const WRITE: u32 = 0;
+                const DELETE: u32 = 0;
+            }
+            impl __BitFlags for ShareAccess {
+                #[allow(deprecated)]
+                const READ: u32 = Self::READ.bits;
+                #[allow(deprecated)]
+                const WRITE: u32 = Self::WRITE.bits;
+                #[allow(deprecated)]
+                const DELETE: u32 = Self::DELETE.bits;
+            }
+            ShareAccess {
+                bits: <ShareAccess as __BitFlags>::READ
+                    | <ShareAccess as __BitFlags>::WRITE
+                    | <ShareAccess as __BitFlags>::DELETE,
+            }
+        }
+        /// Returns the raw value of the flags currently stored.
+        #[inline]
+        pub const fn bits(&self) -> u32 {
+            self.bits
+        }
+        /// Convert from underlying bit representation, unless that
+        /// representation contains bits that do not correspond to a flag.
+        #[inline]
+        pub fn from_bits(bits: u32) -> ::bitflags::_core::option::Option<ShareAccess> {
+            if (bits & !ShareAccess::all().bits()) == 0 {
+                ::bitflags::_core::option::Option::Some(ShareAccess { bits })
+            } else {
+                ::bitflags::_core::option::Option::None
+            }
+        }
+        /// Convert from underlying bit representation, dropping any bits
+        /// that do not correspond to flags.
+        #[inline]
+        pub const fn from_bits_truncate(bits: u32) -> ShareAccess {
+            ShareAccess {
+                bits: bits & ShareAccess::all().bits,
+            }
+        }
+        /// Convert from underlying bit representation, preserving all
+        /// bits (even those not corresponding to a defined flag).
+        #[inline]
+        pub const unsafe fn from_bits_unchecked(bits: u32) -> ShareAccess {
+            ShareAccess { bits }
+        }
+        /// Returns `true` if no flags are currently stored.
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.bits() == ShareAccess::empty().bits()
+        }
+        /// Returns `true` if all flags are currently set.
+        #[inline]
+        pub const fn is_all(&self) -> bool {
+            self.bits == ShareAccess::all().bits
+        }
+        /// Returns `true` if there are flags common to both `self` and `other`.
+        #[inline]
+        pub const fn intersects(&self, other: ShareAccess) -> bool {
+            !ShareAccess {
+                bits: self.bits & other.bits,
+            }
+            .is_empty()
+        }
+        /// Returns `true` all of the flags in `other` are contained within `self`.
+        #[inline]
+        pub const fn contains(&self, other: ShareAccess) -> bool {
+            (self.bits & other.bits) == other.bits
+        }
+        /// Inserts the specified flags in-place.
+        #[inline]
+        pub fn insert(&mut self, other: ShareAccess) {
+            self.bits |= other.bits;
+        }
+        /// Removes the specified flags in-place.
+        #[inline]
+        pub fn remove(&mut self, other: ShareAccess) {
+            self.bits &= !other.bits;
+        }
+        /// Toggles the specified flags in-place.
+        #[inline]
+        pub fn toggle(&mut self, other: ShareAccess) {
+            self.bits ^= other.bits;
+        }
+        /// Inserts or removes the specified flags depending on the passed value.
+        #[inline]
+        pub fn set(&mut self, other: ShareAccess, value: bool) {
+            if value {
+                self.insert(other);
+            } else {
+                self.remove(other);
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOr for ShareAccess {
+        type Output = ShareAccess;
+        /// Returns the union of the two sets of flags.
+        #[inline]
+        fn bitor(self, other: ShareAccess) -> ShareAccess {
+            ShareAccess {
+                bits: self.bits | other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOrAssign for ShareAccess {
+        /// Adds the set of flags.
+        #[inline]
+        fn bitor_assign(&mut self, other: ShareAccess) {
+            self.bits |= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitXor for ShareAccess {
+        type Output = ShareAccess;
+        /// Returns the left flags, but with all the right flags toggled.
+        #[inline]
+        fn bitxor(self, other: ShareAccess) -> ShareAccess {
+            ShareAccess {
+                bits: self.bits ^ other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitXorAssign for ShareAccess {
+        /// Toggles the set of flags.
+        #[inline]
+        fn bitxor_assign(&mut self, other: ShareAccess) {
+            self.bits ^= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitAnd for ShareAccess {
+        type Output = ShareAccess;
+        /// Returns the intersection between the two sets of flags.
+        #[inline]
+        fn bitand(self, other: ShareAccess) -> ShareAccess {
+            ShareAccess {
+                bits: self.bits & other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitAndAssign for ShareAccess {
+        /// Disables all flags disabled in the set.
+        #[inline]
+        fn bitand_assign(&mut self, other: ShareAccess) {
+            self.bits &= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Sub for ShareAccess {
+        type Output = ShareAccess;
+        /// Returns the set difference of the two sets of flags.
+        #[inline]
+        fn sub(self, other: ShareAccess) -> ShareAccess {
+            ShareAccess {
+                bits: self.bits & !other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::SubAssign for ShareAccess {
+        /// Disables all flags enabled in the set.
+        #[inline]
+        fn sub_assign(&mut self, other: ShareAccess) {
+            self.bits &= !other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Not for ShareAccess {
+        type Output = ShareAccess;
+        /// Returns the complement of this set of flags.
+        #[inline]
+        fn not(self) -> ShareAccess {
+            ShareAccess { bits: !self.bits } & ShareAccess::all()
+        }
+    }
+    impl ::bitflags::_core::iter::Extend<ShareAccess> for ShareAccess {
+        fn extend<T: ::bitflags::_core::iter::IntoIterator<Item = ShareAccess>>(
+            &mut self,
+            iterator: T,
+        ) {
+            for item in iterator {
+                self.insert(item)
+            }
+        }
+    }
+    impl ::bitflags::_core::iter::FromIterator<ShareAccess> for ShareAccess {
+        fn from_iter<T: ::bitflags::_core::iter::IntoIterator<Item = ShareAccess>>(
+            iterator: T,
+        ) -> ShareAccess {
+            let mut result = Self::empty();
+            result.extend(iterator);
+            result
+        }
+    }
+    impl Default for ShareAccess {
+        fn default() -> ShareAccess {
+            ShareAccess::READ | ShareAccess::WRITE
+        }
+    }
+    #[repr(transparent)]
+    pub struct SecurityDescriptor(SECURITY_DESCRIPTOR);
+    #[repr(transparent)]
+    pub struct ObjectAttributes(OBJECT_ATTRIBUTES);
+    impl ObjectAttributes {
+        pub fn new(
+            name: PUNICODE_STRING,
+            attrs: Attribute,
+            root: Option<&Handle>,
+            sd: Option<&SecurityDescriptor>,
+        ) -> Self {
+            let root: HANDLE = match root {
+                None => core::ptr::null_mut(),
+                Some(r) => r.as_raw(),
+            };
+            let security_descriptor: PSECURITY_DESCRIPTOR = match sd {
+                None => core::ptr::null_mut(),
+                Some(sd) => &sd.0 as *const _ as PSECURITY_DESCRIPTOR,
+            };
+            let oa = OBJECT_ATTRIBUTES {
+                Length: core::mem::size_of::<OBJECT_ATTRIBUTES>() as ULONG,
+                RootDirectory: root,
+                ObjectName: name,
+                Attributes: attrs.bits() as ULONG,
+                SecurityDescriptor: security_descriptor,
+                SecurityQualityOfService: core::ptr::null_mut(),
+            };
+            Self(oa)
+        }
+        pub fn as_mut_ptr(&mut self) -> POBJECT_ATTRIBUTES {
+            &mut self.0
+        }
+    }
+    impl From<&Handle> for ObjectAttributes {
+        fn from(handle: &Handle) -> Self {
+            let mut empty: UNICODE_STRING = unsafe { mem::zeroed() };
+            ObjectAttributes::new(&mut empty, Attribute::default(), Some(handle), None)
+        }
+    }
+    pub enum CreateDisposition {
+        /// If the file already exists, replace it with the given file.
+        /// If it does not, create the given file.
+        Supersede,
+        /// If the file already exists, fail the request and do not create or open the given file.
+        /// If it does not, create the given file.
+        Create,
+        /// If the file already exists, open it instead of creating a new file.
+        /// If it does not, fail the request and do not create a new file.
+        Open,
+        /// If the file already exists, open it.
+        /// If it does not, create the given file.
+        OpenOrCreate,
+        /// If the file already exists, open it and overwrite it.
+        /// If it does not, fail the request.
+        Overwrite,
+        /// If the file already exists, open it and overwrite it.
+        /// If it does not, create the given file.
+        OverwriteOrCreate,
+    }
+    impl CreateDisposition {
+        pub fn to_u32(&self) -> u32 {
+            match self {
+                CreateDisposition::Supersede => FILE_SUPERSEDE,
+                CreateDisposition::Create => FILE_CREATE,
+                CreateDisposition::Open => FILE_OPEN,
+                CreateDisposition::OpenOrCreate => FILE_OPEN_IF,
+                CreateDisposition::Overwrite => FILE_OVERWRITE,
+                CreateDisposition::OverwriteOrCreate => FILE_OVERWRITE_IF,
+            }
+        }
+    }
+    pub struct Options {
+        bits: u32,
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::marker::Copy for Options {}
+    impl ::core::marker::StructuralPartialEq for Options {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialEq for Options {
+        #[inline]
+        fn eq(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) == (*__self_1_0),
+                },
+            }
+        }
+        #[inline]
+        fn ne(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => (*__self_0_0) != (*__self_1_0),
+                },
+            }
+        }
+    }
+    impl ::core::marker::StructuralEq for Options {}
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Eq for Options {
+        #[inline]
+        #[doc(hidden)]
+        fn assert_receiver_is_total_eq(&self) -> () {
+            {
+                let _: ::core::cmp::AssertParamIsEq<u32>;
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::clone::Clone for Options {
+        #[inline]
+        fn clone(&self) -> Options {
+            {
+                let _: ::core::clone::AssertParamIsClone<u32>;
+                *self
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::PartialOrd for Options {
+        #[inline]
+        fn partial_cmp(&self, other: &Options) -> ::core::option::Option<::core::cmp::Ordering> {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0))
+                    {
+                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
+                            ::core::option::Option::Some(::core::cmp::Ordering::Equal)
+                        }
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+        #[inline]
+        fn lt(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) == ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn le(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Greater,
+                        ) != ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn gt(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) == ::core::cmp::Ordering::Greater
+                    }
+                },
+            }
+        }
+        #[inline]
+        fn ge(&self, other: &Options) -> bool {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => {
+                        ::core::option::Option::unwrap_or(
+                            ::core::cmp::PartialOrd::partial_cmp(&(*__self_0_0), &(*__self_1_0)),
+                            ::core::cmp::Ordering::Less,
+                        ) != ::core::cmp::Ordering::Less
+                    }
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::cmp::Ord for Options {
+        #[inline]
+        fn cmp(&self, other: &Options) -> ::core::cmp::Ordering {
+            match *other {
+                Options {
+                    bits: ref __self_1_0,
+                } => match *self {
+                    Options {
+                        bits: ref __self_0_0,
+                    } => match ::core::cmp::Ord::cmp(&(*__self_0_0), &(*__self_1_0)) {
+                        ::core::cmp::Ordering::Equal => ::core::cmp::Ordering::Equal,
+                        cmp => cmp,
+                    },
+                },
+            }
+        }
+    }
+    #[automatically_derived]
+    #[allow(unused_qualifications)]
+    impl ::core::hash::Hash for Options {
+        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+            match *self {
+                Options {
+                    bits: ref __self_0_0,
+                } => ::core::hash::Hash::hash(&(*__self_0_0), state),
+            }
+        }
+    }
+    impl ::bitflags::_core::fmt::Debug for Options {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                #[inline]
+                fn DIRECTORY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NON_DIRECTORY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn WRITE_THROUGH(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SEQUENTIAL_ONLY(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn RANDOM_ACCESS(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NO_BUFFERING(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SYNC_ALERT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn SYNC_NONALERT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn CREATE_TREE_CONNECTION(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn NO_EA_KNOWLEDGE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPEN_REPARSE_POINT(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn DELETE_ON_CLOSE(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPEN_BY_FILE_ID(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPEN_FOR_BACKUP(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn RESERVE_OPFILTER(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn OPEN_REQUIRING_OPLOCK(&self) -> bool {
+                    false
+                }
+                #[inline]
+                fn COMPLETE_IF_OPLOCKED(&self) -> bool {
+                    false
+                }
+            }
+            impl __BitFlags for Options {
+                #[allow(deprecated)]
+                #[inline]
+                fn DIRECTORY(&self) -> bool {
+                    if Self::DIRECTORY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DIRECTORY.bits == Self::DIRECTORY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NON_DIRECTORY(&self) -> bool {
+                    if Self::NON_DIRECTORY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NON_DIRECTORY.bits == Self::NON_DIRECTORY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn WRITE_THROUGH(&self) -> bool {
+                    if Self::WRITE_THROUGH.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::WRITE_THROUGH.bits == Self::WRITE_THROUGH.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SEQUENTIAL_ONLY(&self) -> bool {
+                    if Self::SEQUENTIAL_ONLY.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SEQUENTIAL_ONLY.bits == Self::SEQUENTIAL_ONLY.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn RANDOM_ACCESS(&self) -> bool {
+                    if Self::RANDOM_ACCESS.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::RANDOM_ACCESS.bits == Self::RANDOM_ACCESS.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NO_BUFFERING(&self) -> bool {
+                    if Self::NO_BUFFERING.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NO_BUFFERING.bits == Self::NO_BUFFERING.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SYNC_ALERT(&self) -> bool {
+                    if Self::SYNC_ALERT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SYNC_ALERT.bits == Self::SYNC_ALERT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn SYNC_NONALERT(&self) -> bool {
+                    if Self::SYNC_NONALERT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::SYNC_NONALERT.bits == Self::SYNC_NONALERT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn CREATE_TREE_CONNECTION(&self) -> bool {
+                    if Self::CREATE_TREE_CONNECTION.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::CREATE_TREE_CONNECTION.bits
+                            == Self::CREATE_TREE_CONNECTION.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn NO_EA_KNOWLEDGE(&self) -> bool {
+                    if Self::NO_EA_KNOWLEDGE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::NO_EA_KNOWLEDGE.bits == Self::NO_EA_KNOWLEDGE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPEN_REPARSE_POINT(&self) -> bool {
+                    if Self::OPEN_REPARSE_POINT.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPEN_REPARSE_POINT.bits == Self::OPEN_REPARSE_POINT.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn DELETE_ON_CLOSE(&self) -> bool {
+                    if Self::DELETE_ON_CLOSE.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::DELETE_ON_CLOSE.bits == Self::DELETE_ON_CLOSE.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPEN_BY_FILE_ID(&self) -> bool {
+                    if Self::OPEN_BY_FILE_ID.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPEN_BY_FILE_ID.bits == Self::OPEN_BY_FILE_ID.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPEN_FOR_BACKUP(&self) -> bool {
+                    if Self::OPEN_FOR_BACKUP.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPEN_FOR_BACKUP.bits == Self::OPEN_FOR_BACKUP.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn RESERVE_OPFILTER(&self) -> bool {
+                    if Self::RESERVE_OPFILTER.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::RESERVE_OPFILTER.bits == Self::RESERVE_OPFILTER.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn OPEN_REQUIRING_OPLOCK(&self) -> bool {
+                    if Self::OPEN_REQUIRING_OPLOCK.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::OPEN_REQUIRING_OPLOCK.bits
+                            == Self::OPEN_REQUIRING_OPLOCK.bits
+                    }
+                }
+                #[allow(deprecated)]
+                #[inline]
+                fn COMPLETE_IF_OPLOCKED(&self) -> bool {
+                    if Self::COMPLETE_IF_OPLOCKED.bits == 0 && self.bits != 0 {
+                        false
+                    } else {
+                        self.bits & Self::COMPLETE_IF_OPLOCKED.bits
+                            == Self::COMPLETE_IF_OPLOCKED.bits
+                    }
+                }
+            }
+            let mut first = true;
+            if <Options as __BitFlags>::DIRECTORY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DIRECTORY")?;
+            }
+            if <Options as __BitFlags>::NON_DIRECTORY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NON_DIRECTORY")?;
+            }
+            if <Options as __BitFlags>::WRITE_THROUGH(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("WRITE_THROUGH")?;
+            }
+            if <Options as __BitFlags>::SEQUENTIAL_ONLY(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SEQUENTIAL_ONLY")?;
+            }
+            if <Options as __BitFlags>::RANDOM_ACCESS(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("RANDOM_ACCESS")?;
+            }
+            if <Options as __BitFlags>::NO_BUFFERING(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NO_BUFFERING")?;
+            }
+            if <Options as __BitFlags>::SYNC_ALERT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SYNC_ALERT")?;
+            }
+            if <Options as __BitFlags>::SYNC_NONALERT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("SYNC_NONALERT")?;
+            }
+            if <Options as __BitFlags>::CREATE_TREE_CONNECTION(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("CREATE_TREE_CONNECTION")?;
+            }
+            if <Options as __BitFlags>::NO_EA_KNOWLEDGE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("NO_EA_KNOWLEDGE")?;
+            }
+            if <Options as __BitFlags>::OPEN_REPARSE_POINT(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPEN_REPARSE_POINT")?;
+            }
+            if <Options as __BitFlags>::DELETE_ON_CLOSE(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("DELETE_ON_CLOSE")?;
+            }
+            if <Options as __BitFlags>::OPEN_BY_FILE_ID(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPEN_BY_FILE_ID")?;
+            }
+            if <Options as __BitFlags>::OPEN_FOR_BACKUP(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPEN_FOR_BACKUP")?;
+            }
+            if <Options as __BitFlags>::RESERVE_OPFILTER(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("RESERVE_OPFILTER")?;
+            }
+            if <Options as __BitFlags>::OPEN_REQUIRING_OPLOCK(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("OPEN_REQUIRING_OPLOCK")?;
+            }
+            if <Options as __BitFlags>::COMPLETE_IF_OPLOCKED(self) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("COMPLETE_IF_OPLOCKED")?;
+            }
+            let extra_bits = self.bits & !Options::all().bits();
+            if extra_bits != 0 {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str("0x")?;
+                ::bitflags::_core::fmt::LowerHex::fmt(&extra_bits, f)?;
+            }
+            if first {
+                f.write_str("(empty)")?;
+            }
+            Ok(())
+        }
+    }
+    impl ::bitflags::_core::fmt::Binary for Options {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Binary::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::Octal for Options {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::Octal::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::LowerHex for Options {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::LowerHex::fmt(&self.bits, f)
+        }
+    }
+    impl ::bitflags::_core::fmt::UpperHex for Options {
+        fn fmt(&self, f: &mut ::bitflags::_core::fmt::Formatter) -> ::bitflags::_core::fmt::Result {
+            ::bitflags::_core::fmt::UpperHex::fmt(&self.bits, f)
+        }
+    }
+    #[allow(dead_code)]
+    impl Options {
+        pub const DIRECTORY: Options = Options {
+            bits: FILE_DIRECTORY_FILE,
+        };
+        pub const NON_DIRECTORY: Options = Options {
+            bits: FILE_NON_DIRECTORY_FILE,
+        };
+        pub const WRITE_THROUGH: Options = Options {
+            bits: FILE_WRITE_THROUGH,
+        };
+        pub const SEQUENTIAL_ONLY: Options = Options {
+            bits: FILE_SEQUENTIAL_ONLY,
+        };
+        pub const RANDOM_ACCESS: Options = Options {
+            bits: FILE_RANDOM_ACCESS,
+        };
+        pub const NO_BUFFERING: Options = Options {
+            bits: FILE_NO_INTERMEDIATE_BUFFERING,
+        };
+        pub const SYNC_ALERT: Options = Options {
+            bits: FILE_SYNCHRONOUS_IO_ALERT,
+        };
+        pub const SYNC_NONALERT: Options = Options {
+            bits: FILE_SYNCHRONOUS_IO_NONALERT,
+        };
+        pub const CREATE_TREE_CONNECTION: Options = Options {
+            bits: FILE_CREATE_TREE_CONNECTION,
+        };
+        pub const NO_EA_KNOWLEDGE: Options = Options {
+            bits: FILE_NO_EA_KNOWLEDGE,
+        };
+        pub const OPEN_REPARSE_POINT: Options = Options {
+            bits: FILE_OPEN_REPARSE_POINT,
+        };
+        pub const DELETE_ON_CLOSE: Options = Options {
+            bits: FILE_DELETE_ON_CLOSE,
+        };
+        pub const OPEN_BY_FILE_ID: Options = Options {
+            bits: FILE_OPEN_BY_FILE_ID,
+        };
+        pub const OPEN_FOR_BACKUP: Options = Options {
+            bits: FILE_OPEN_FOR_BACKUP_INTENT,
+        };
+        pub const RESERVE_OPFILTER: Options = Options {
+            bits: FILE_RESERVE_OPFILTER,
+        };
+        pub const OPEN_REQUIRING_OPLOCK: Options = Options {
+            bits: FILE_OPEN_REQUIRING_OPLOCK,
+        };
+        pub const COMPLETE_IF_OPLOCKED: Options = Options {
+            bits: FILE_COMPLETE_IF_OPLOCKED,
+        };
+        /// Returns an empty set of flags
+        #[inline]
+        pub const fn empty() -> Options {
+            Options { bits: 0 }
+        }
+        /// Returns the set containing all flags.
+        #[inline]
+        pub const fn all() -> Options {
+            #[allow(non_snake_case)]
+            trait __BitFlags {
+                const DIRECTORY: u32 = 0;
+                const NON_DIRECTORY: u32 = 0;
+                const WRITE_THROUGH: u32 = 0;
+                const SEQUENTIAL_ONLY: u32 = 0;
+                const RANDOM_ACCESS: u32 = 0;
+                const NO_BUFFERING: u32 = 0;
+                const SYNC_ALERT: u32 = 0;
+                const SYNC_NONALERT: u32 = 0;
+                const CREATE_TREE_CONNECTION: u32 = 0;
+                const NO_EA_KNOWLEDGE: u32 = 0;
+                const OPEN_REPARSE_POINT: u32 = 0;
+                const DELETE_ON_CLOSE: u32 = 0;
+                const OPEN_BY_FILE_ID: u32 = 0;
+                const OPEN_FOR_BACKUP: u32 = 0;
+                const RESERVE_OPFILTER: u32 = 0;
+                const OPEN_REQUIRING_OPLOCK: u32 = 0;
+                const COMPLETE_IF_OPLOCKED: u32 = 0;
+            }
+            impl __BitFlags for Options {
+                #[allow(deprecated)]
+                const DIRECTORY: u32 = Self::DIRECTORY.bits;
+                #[allow(deprecated)]
+                const NON_DIRECTORY: u32 = Self::NON_DIRECTORY.bits;
+                #[allow(deprecated)]
+                const WRITE_THROUGH: u32 = Self::WRITE_THROUGH.bits;
+                #[allow(deprecated)]
+                const SEQUENTIAL_ONLY: u32 = Self::SEQUENTIAL_ONLY.bits;
+                #[allow(deprecated)]
+                const RANDOM_ACCESS: u32 = Self::RANDOM_ACCESS.bits;
+                #[allow(deprecated)]
+                const NO_BUFFERING: u32 = Self::NO_BUFFERING.bits;
+                #[allow(deprecated)]
+                const SYNC_ALERT: u32 = Self::SYNC_ALERT.bits;
+                #[allow(deprecated)]
+                const SYNC_NONALERT: u32 = Self::SYNC_NONALERT.bits;
+                #[allow(deprecated)]
+                const CREATE_TREE_CONNECTION: u32 = Self::CREATE_TREE_CONNECTION.bits;
+                #[allow(deprecated)]
+                const NO_EA_KNOWLEDGE: u32 = Self::NO_EA_KNOWLEDGE.bits;
+                #[allow(deprecated)]
+                const OPEN_REPARSE_POINT: u32 = Self::OPEN_REPARSE_POINT.bits;
+                #[allow(deprecated)]
+                const DELETE_ON_CLOSE: u32 = Self::DELETE_ON_CLOSE.bits;
+                #[allow(deprecated)]
+                const OPEN_BY_FILE_ID: u32 = Self::OPEN_BY_FILE_ID.bits;
+                #[allow(deprecated)]
+                const OPEN_FOR_BACKUP: u32 = Self::OPEN_FOR_BACKUP.bits;
+                #[allow(deprecated)]
+                const RESERVE_OPFILTER: u32 = Self::RESERVE_OPFILTER.bits;
+                #[allow(deprecated)]
+                const OPEN_REQUIRING_OPLOCK: u32 = Self::OPEN_REQUIRING_OPLOCK.bits;
+                #[allow(deprecated)]
+                const COMPLETE_IF_OPLOCKED: u32 = Self::COMPLETE_IF_OPLOCKED.bits;
+            }
+            Options {
+                bits: <Options as __BitFlags>::DIRECTORY
+                    | <Options as __BitFlags>::NON_DIRECTORY
+                    | <Options as __BitFlags>::WRITE_THROUGH
+                    | <Options as __BitFlags>::SEQUENTIAL_ONLY
+                    | <Options as __BitFlags>::RANDOM_ACCESS
+                    | <Options as __BitFlags>::NO_BUFFERING
+                    | <Options as __BitFlags>::SYNC_ALERT
+                    | <Options as __BitFlags>::SYNC_NONALERT
+                    | <Options as __BitFlags>::CREATE_TREE_CONNECTION
+                    | <Options as __BitFlags>::NO_EA_KNOWLEDGE
+                    | <Options as __BitFlags>::OPEN_REPARSE_POINT
+                    | <Options as __BitFlags>::DELETE_ON_CLOSE
+                    | <Options as __BitFlags>::OPEN_BY_FILE_ID
+                    | <Options as __BitFlags>::OPEN_FOR_BACKUP
+                    | <Options as __BitFlags>::RESERVE_OPFILTER
+                    | <Options as __BitFlags>::OPEN_REQUIRING_OPLOCK
+                    | <Options as __BitFlags>::COMPLETE_IF_OPLOCKED,
+            }
+        }
+        /// Returns the raw value of the flags currently stored.
+        #[inline]
+        pub const fn bits(&self) -> u32 {
+            self.bits
+        }
+        /// Convert from underlying bit representation, unless that
+        /// representation contains bits that do not correspond to a flag.
+        #[inline]
+        pub fn from_bits(bits: u32) -> ::bitflags::_core::option::Option<Options> {
+            if (bits & !Options::all().bits()) == 0 {
+                ::bitflags::_core::option::Option::Some(Options { bits })
+            } else {
+                ::bitflags::_core::option::Option::None
+            }
+        }
+        /// Convert from underlying bit representation, dropping any bits
+        /// that do not correspond to flags.
+        #[inline]
+        pub const fn from_bits_truncate(bits: u32) -> Options {
+            Options {
+                bits: bits & Options::all().bits,
+            }
+        }
+        /// Convert from underlying bit representation, preserving all
+        /// bits (even those not corresponding to a defined flag).
+        #[inline]
+        pub const unsafe fn from_bits_unchecked(bits: u32) -> Options {
+            Options { bits }
+        }
+        /// Returns `true` if no flags are currently stored.
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.bits() == Options::empty().bits()
+        }
+        /// Returns `true` if all flags are currently set.
+        #[inline]
+        pub const fn is_all(&self) -> bool {
+            self.bits == Options::all().bits
+        }
+        /// Returns `true` if there are flags common to both `self` and `other`.
+        #[inline]
+        pub const fn intersects(&self, other: Options) -> bool {
+            !Options {
+                bits: self.bits & other.bits,
+            }
+            .is_empty()
+        }
+        /// Returns `true` all of the flags in `other` are contained within `self`.
+        #[inline]
+        pub const fn contains(&self, other: Options) -> bool {
+            (self.bits & other.bits) == other.bits
+        }
+        /// Inserts the specified flags in-place.
+        #[inline]
+        pub fn insert(&mut self, other: Options) {
+            self.bits |= other.bits;
+        }
+        /// Removes the specified flags in-place.
+        #[inline]
+        pub fn remove(&mut self, other: Options) {
+            self.bits &= !other.bits;
+        }
+        /// Toggles the specified flags in-place.
+        #[inline]
+        pub fn toggle(&mut self, other: Options) {
+            self.bits ^= other.bits;
+        }
+        /// Inserts or removes the specified flags depending on the passed value.
+        #[inline]
+        pub fn set(&mut self, other: Options, value: bool) {
+            if value {
+                self.insert(other);
+            } else {
+                self.remove(other);
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOr for Options {
+        type Output = Options;
+        /// Returns the union of the two sets of flags.
+        #[inline]
+        fn bitor(self, other: Options) -> Options {
+            Options {
+                bits: self.bits | other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitOrAssign for Options {
+        /// Adds the set of flags.
+        #[inline]
+        fn bitor_assign(&mut self, other: Options) {
+            self.bits |= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitXor for Options {
+        type Output = Options;
+        /// Returns the left flags, but with all the right flags toggled.
+        #[inline]
+        fn bitxor(self, other: Options) -> Options {
+            Options {
+                bits: self.bits ^ other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitXorAssign for Options {
+        /// Toggles the set of flags.
+        #[inline]
+        fn bitxor_assign(&mut self, other: Options) {
+            self.bits ^= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::BitAnd for Options {
+        type Output = Options;
+        /// Returns the intersection between the two sets of flags.
+        #[inline]
+        fn bitand(self, other: Options) -> Options {
+            Options {
+                bits: self.bits & other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::BitAndAssign for Options {
+        /// Disables all flags disabled in the set.
+        #[inline]
+        fn bitand_assign(&mut self, other: Options) {
+            self.bits &= other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Sub for Options {
+        type Output = Options;
+        /// Returns the set difference of the two sets of flags.
+        #[inline]
+        fn sub(self, other: Options) -> Options {
+            Options {
+                bits: self.bits & !other.bits,
+            }
+        }
+    }
+    impl ::bitflags::_core::ops::SubAssign for Options {
+        /// Disables all flags enabled in the set.
+        #[inline]
+        fn sub_assign(&mut self, other: Options) {
+            self.bits &= !other.bits;
+        }
+    }
+    impl ::bitflags::_core::ops::Not for Options {
+        type Output = Options;
+        /// Returns the complement of this set of flags.
+        #[inline]
+        fn not(self) -> Options {
+            Options { bits: !self.bits } & Options::all()
+        }
+    }
+    impl ::bitflags::_core::iter::Extend<Options> for Options {
+        fn extend<T: ::bitflags::_core::iter::IntoIterator<Item = Options>>(
+            &mut self,
+            iterator: T,
+        ) {
+            for item in iterator {
+                self.insert(item)
+            }
+        }
+    }
+    impl ::bitflags::_core::iter::FromIterator<Options> for Options {
+        fn from_iter<T: ::bitflags::_core::iter::IntoIterator<Item = Options>>(
+            iterator: T,
+        ) -> Options {
+            let mut result = Self::empty();
+            result.extend(iterator);
+            result
+        }
+    }
+    impl Default for Options {
+        fn default() -> Options {
+            Options::SYNC_NONALERT
+        }
+    }
+    pub struct NewHandle {
+        pub access: Access,
+        pub attributes: Attribute,
+        pub security_descriptor: Option<SecurityDescriptor>,
+        pub root: Option<Handle>,
+        pub allocation_size: u64,
+        pub file_attributes: FileAttribute,
+        pub share_access: ShareAccess,
+        pub create_disposition: CreateDisposition,
+        pub options: Options,
+        pub ea: crate::Vec<u8>,
+    }
+    impl Default for NewHandle {
+        fn default() -> Self {
+            Self {
+                access: Access::default(),
+                attributes: Attribute::default(),
+                security_descriptor: None,
+                root: None,
+                allocation_size: 0,
+                file_attributes: FileAttribute::default(),
+                share_access: ShareAccess::default(),
+                create_disposition: CreateDisposition::OpenOrCreate,
+                options: Options::default(),
+                ea: crate::Vec::new(),
+            }
+        }
+    }
+    impl NewHandle {
+        pub fn with_cd(create_disposition: CreateDisposition) -> Self {
+            Self {
+                create_disposition,
+                ..Self::default()
+            }
+        }
+        pub fn create_new(name: &NtString) -> Result<Handle> {
+            let (handle, _) = Self::with_cd(CreateDisposition::Create).build(name)?;
+            Ok(handle)
+        }
+        pub fn open(name: &NtString) -> Result<Handle> {
+            let (handle, _) = Self::with_cd(CreateDisposition::Open).build(name)?;
+            Ok(handle)
+        }
+        pub fn open_readonly(name: &NtString) -> Result<Handle> {
+            let (handle, _) = Self::with_cd(CreateDisposition::Open).build(name)?;
+            Ok(handle)
+        }
+        pub fn open_or_create(name: &NtString) -> Result<(Handle, bool)> {
+            Self::with_cd(CreateDisposition::OpenOrCreate).build(name)
+        }
+        pub fn owerwrite(name: &NtString) -> Result<Handle> {
+            let (handle, _) = Self::with_cd(CreateDisposition::Overwrite).build(name)?;
+            Ok(handle)
+        }
+        pub fn owerwrite_or_create(name: &NtString) -> Result<(Handle, bool)> {
+            Self::with_cd(CreateDisposition::OverwriteOrCreate).build(name)
+        }
+        pub fn build(self, dos_name: &NtString) -> Result<(Handle, bool)> {
+            let (nt_name, this) = self.auto_options(dos_name)?;
+            this.build_nt(&nt_name)
+        }
+        pub fn build_nt(mut self, nt_name: &impl ToUnicodeString) -> Result<(Handle, bool)> {
+            if self.options.contains(Options::DELETE_ON_CLOSE) {
+                self.access |= Access::DELETE;
+            }
+            unsafe {
+                let mut unicode_str = nt_name.to_unicode_string();
+                let mut oa = ObjectAttributes::new(
+                    &mut unicode_str,
+                    self.attributes,
+                    self.root.as_ref(),
+                    self.security_descriptor.as_ref(),
+                );
+                let mut raw: HANDLE = mem::zeroed();
+                let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
+                let status = NtCreateFile(
+                    &mut raw,
+                    self.access.bits,
+                    oa.as_mut_ptr(),
+                    &mut iosb,
+                    self.allocation_size_ptr(),
+                    self.file_attributes.bits,
+                    self.share_access.bits,
+                    self.create_disposition.to_u32(),
+                    self.options.bits,
+                    self.ea.safe_ptr() as PVOID,
+                    self.ea.len() as u32,
+                );
+                if winapi::shared::ntdef::NT_SUCCESS(status) {
+                    Ok({
+                        let already_exists = match self.create_disposition {
+                            CreateDisposition::OpenOrCreate => {
+                                iosb.Information == (FILE_OPENED as usize)
+                            }
+                            CreateDisposition::OverwriteOrCreate => {
+                                iosb.Information == (FILE_OVERWRITTEN as usize)
+                            }
+                            _ => false,
+                        };
+                        (Handle::new(raw), already_exists)
+                    })
+                } else {
+                    Err(crate::Error::from(status))
+                }
+            }
+        }
+    }
+    impl NewHandle {
+        pub(crate) fn device(access: Access) -> Self {
+            Self {
+                access,
+                share_access: ShareAccess::READ | ShareAccess::WRITE,
+                create_disposition: CreateDisposition::Open,
+                file_attributes: FileAttribute::NORMAL,
+                ..NewHandle::default()
+            }
+        }
+        pub(crate) fn auto_options(mut self, dos_name: &NtString) -> Result<(NtString, Self)> {
+            let (nt_name, is_dir) = super::dos_name_to_nt(dos_name)?;
+            if !self.options.contains(Options::DIRECTORY)
+                && !self.options.contains(Options::NON_DIRECTORY)
+            {
+                if is_dir {
+                    self.options.remove(Options::NON_DIRECTORY);
+                    self.options |= Options::DIRECTORY;
+                } else {
+                    self.options.remove(Options::DIRECTORY);
+                    self.options |= Options::NON_DIRECTORY;
+                }
+            }
+            Ok((nt_name, self))
+        }
+        unsafe fn allocation_size_ptr(&self) -> PLARGE_INTEGER {
+            match self.allocation_size {
+                0 => core::ptr::null_mut(),
+                _ => &self.allocation_size as *const _ as PLARGE_INTEGER,
+            }
+        }
+    }
+}

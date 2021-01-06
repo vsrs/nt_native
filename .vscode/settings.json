@@ -1,4 +1,14 @@
 {
-    "rust-analyzer.inlayHints.typeHints": false,
-    "rust-analyzer.inlayHints.chainingHints": false
+    "rust-analyzer.debug.engineSettings": {
+        "cppvsdbg": {
+            "visualizerFile": "${workspaceRoot}\\nt_native.natvis",
+        }        
+    },
+    "rust-analyzer.debug.sourceFileMap": {
+        "/rustc/e1884a8e3c3e813aada8254edfa120e85bf5ffca": "${env:USERPROFILE}/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust"
+    },
+    "rust-analyzer.inlayHints.enable": false,
+    "rust-analyzer.runnableEnv": {
+        "NT_NATIVE_TEST_DIR": "${workspaceFolder}/../temp/"
+    }    
 }

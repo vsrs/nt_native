@@ -13,7 +13,7 @@ description = "Windows Native subsystem bindings for the Rust programming langua
 [dependencies]
 cfg-if = "0.1.10"
 winapi = { version = "0.3" }
-ntapi = { version = "0.3.3" }
+ntapi = { version = "0.3" }
 bitflags = "1.0"
 wstr = "0.2"
 rdisk_shared = { version = "^0.1", default-features = false }

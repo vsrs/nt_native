@@ -40,6 +40,7 @@ impl core::fmt::Debug for Error {
 
 #[cfg(feature = "std")]
 pub use std_impl::*;
+
 #[cfg(feature = "std")]
 mod std_impl {
     use super::*;

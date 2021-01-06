@@ -5,7 +5,7 @@
 compile_error!("Either feature 'user' or 'kernel' must be enabled: Link to `ntdll` or 'ntoskrnl' respectively");
 
 #[cfg(all(feature = "std", feature = "kernel"))]
-compile_error!("'std' support is anawailable for 'kernel'");
+compile_error!("'std' support is unawailable for 'kernel'");
 
 #[cfg(all(feature = "user", feature = "kernel"))]
 compile_error!("Only one feature 'user' or 'kernel' must be enabled: Link to `ntdll` or 'ntoskrnl' respectively");

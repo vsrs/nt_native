@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="nt_native::nt_string::NtString">
+    <DisplayString>{__0.buf.ptr.pointer,[__0.len]su}</DisplayString>
+    <Expand>
+      <Item Name="[len]">__0.len</Item>
+    </Expand>
+  </Type>
+  <Type Name="nt_native::error::Error">
+    <DisplayString>NTSTATUS: {__0,Xb}</DisplayString>
+  </Type>
+  <Type Name="nt_native::volume::Volume">
+    <DisplayString>{__0.__0,Xb}</DisplayString>
+  </Type>
+</AutoVisualizer>

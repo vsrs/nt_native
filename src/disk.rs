@@ -1,5 +1,5 @@
-use winapi::um::winioctl::{IOCTL_DISK_GET_DRIVE_GEOMETRY, DISK_GEOMETRY};
 use crate::*;
+use winapi::um::winioctl::{DISK_GEOMETRY, IOCTL_DISK_GET_DRIVE_GEOMETRY};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -33,8 +33,9 @@ impl Disk {
         Self::open_readonly(&name)
     }
 
+    // TODO: check if the call needs ADMIN rights
     pub fn open_readonly(name: &NtString) -> Result<Self> {
-        let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build(name)?;
+        let (handle, _) = NewHandle::device(Access::GENERIC_READ).build(name)?;
 
         Ok(Self(handle))
     }
@@ -54,7 +55,7 @@ impl Disk {
 
     /// Returns the disk device name: `\Device\Harddisk0\DR0`.
     ///
-    /// To pass this name to a Win32 function add `\\?\GLOBALROOT\` prefix: `\\?\GLOBALROOT\ \Device\Harddisk0\DR0`
+    /// To pass this name to a Win32 function add `\\?\GLOBALROOT\` prefix: `\\?\GLOBALROOT\Device\Harddisk0\DR0`
     pub fn device_name(&self) -> Result<NtString> {
         self.0.object_name()
     }
