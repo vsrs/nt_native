@@ -5,15 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Unittests",
-            "type": "cppvsdbg",
+            "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/target\\debug\\deps\\nt_native-36115359d9afff61.exe ",
-            "args": [
-                "--test-threads=1",
-                "--nocapture"
-            ],
-            "stopAtEntry": false,
+            "name": "Unittests",
+            "cargo": {
+                "args": [
+                    "test",
+                ],
+                "filter": {
+                    "name": "nt_native",
+                    "kind": "lib"
+                }
+            },
             "cwd": "${workspaceFolder}",
             "environment": [
                 {
@@ -21,26 +24,22 @@
                     "value": "1"
                 }
             ],
-            "externalConsole": false,
             "preLaunchTask": "${defaultBuildTask}",
-            "internalConsoleOptions": "openOnSessionStart",
-            "logging": {
-                "moduleLoad": false
-            },
-            "sourceFileMap": {
-                "/rustc/b8cedc00407a4c56a3bda1ed605c6fc166655447": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
-            }
+            "internalConsoleOptions": "openOnFirstSessionStart",
         },
         {
-            "name": "File io tests",
-            "type": "cppvsdbg",
+            "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/target\\debug\\deps\\file_io-042ddb2b8a6fdbc6.exe",
-            "args": [
-                "--test-threads=1",
-                "--nocapture"
-            ],
-            "stopAtEntry": false,
+            "name": "File io tests",
+            "cargo": {
+                "args": [
+                    "test",
+                ],
+                "filter": {
+                    "name": "file_io",
+                    "kind": "test"
+                }
+            },
             "cwd": "${workspaceFolder}",
             "environment": [
                 {
@@ -52,15 +51,8 @@
                     "value": "${workspaceFolder}/../temp/"
                 }
             ],
-            "externalConsole": false,
             "preLaunchTask": "${defaultBuildTask}",
-            "internalConsoleOptions": "openOnSessionStart",
-            "logging": {
-                "moduleLoad": false
-            },
-            "sourceFileMap": {
-                "/rustc/b8cedc00407a4c56a3bda1ed605c6fc166655447": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
-            }
+            "internalConsoleOptions": "openOnFirstSessionStart",
         }
     ]
 }
