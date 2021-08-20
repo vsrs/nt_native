@@ -13,13 +13,6 @@ compile_error!("Only one feature 'user' or 'kernel' must be enabled: Link to `nt
 #[macro_use]
 extern crate bitflags;
 
-#[macro_use]
-#[allow(unused_imports)]
-extern crate wstr;
-
-#[doc(hidden)]
-pub use wstr::{wstr, wstr_impl}; // Just the macros needed.
-
 pub(crate) use rdisk_shared::{xstd::*, *};
 
 #[macro_export]

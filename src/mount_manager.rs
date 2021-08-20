@@ -2,10 +2,15 @@ use crate::*;
 use core::mem;
 use winapi::shared::ntdef::{ULONG, USHORT};
 use winapi::shared::ntstatus::{STATUS_BUFFER_OVERFLOW, STATUS_SUCCESS};
+use windy::WString;
+use windy_macros::wstring;
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
-pub struct MountManager(Handle);
+pub struct MountManager {
+    handle: Handle,
+    device_name: WString,
+}
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "std", test), derive(Debug))]
@@ -72,7 +77,7 @@ impl MountPoint {
     }
 
     fn add_link_name(&mut self, name: &[u16]) {
-        if self.dos_name.is_empty() && is_dos_volume_name(&name) {
+        if self.dos_name.is_empty() && is_dos_volume_name(name) {
             self.dos_name = NtString::from(name);
         } else if self.guid_name.is_empty() {
             debug_assert!(is_guid_volume_name(name));
@@ -91,15 +96,13 @@ impl MountPoint {
 
 #[allow(bad_style)]
 #[allow(dead_code)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 mod mountmgr {
     use crate::CTL_CODE;
     use winapi::shared::minwindef::{DWORD, ULONG, USHORT};
     use winapi::shared::ntdef::WCHAR;
     use winapi::um::winioctl::{FILE_ANY_ACCESS, FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED};
     use winapi::STRUCT;
-
-    pub static DEVICE_NAME: &[u16] = wstr!("\\??\\MountPointManager");
 
     pub const MOUNTMGRCONTROLTYPE: DWORD = 0x0000_006D; // 'm'
     pub const MOUNTDEVCONTROLTYPE: DWORD = 0x0000_004D; // 'M'
@@ -156,15 +159,17 @@ const MP_SIZE: usize = mem::size_of::<mountmgr::MOUNTMGR_MOUNT_POINT>();
 
 impl MountManager {
     pub fn open() -> Result<Self> {
-        let (handle, _) = NewHandle::device(Access::GENERIC_READ | Access::GENERIC_WRITE).build_nt(&mountmgr::DEVICE_NAME)?;
+        let device_name = wstring!("\\??\\MountPointManager");
+        let (handle, _) = NewHandle::device(Access::GENERIC_READ | Access::GENERIC_WRITE).build_nt(&device_name.as_bytes())?;
 
-        Ok(Self(handle))
+        Ok(Self { handle, device_name })
     }
 
     pub fn open_readonly() -> Result<Self> {
-        let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build_nt(&mountmgr::DEVICE_NAME)?;
+        let device_name = wstring!("\\??\\MountPointManager");
+        let (handle, _) = NewHandle::device(Access::SYNCHRONIZE).build_nt(&device_name.as_bytes())?;
 
-        Ok(Self(handle))
+        Ok(Self { handle, device_name })
     }
 
     pub fn path_names(&self, device_name: &NtString) -> Result<Vec<NtString>> {
@@ -239,7 +244,7 @@ impl MountManager {
     unsafe fn ioctl(&self, code: u32, input: &[u8]) -> Result<Vec<u8>> {
         let mut out_buffer = alloc_buffer(512);
         loop {
-            let (status, _) = self.0.ioctl_raw(code, input, &mut out_buffer);
+            let (status, _) = self.handle.ioctl_raw(code, input, &mut out_buffer);
             match status {
                 STATUS_SUCCESS => break,
                 STATUS_BUFFER_OVERFLOW => out_buffer.resize(out_buffer.len() * 2, 0),
