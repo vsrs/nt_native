@@ -39,6 +39,8 @@ impl NtString {
         Self(Vec::new())
     }
 
+    ///# Safety
+    ///be careful
     pub unsafe fn from_raw_bytes(ptr: *const u16, len: u32) -> Self {
         let name_bytes: &[u16] = core::slice::from_raw_parts(ptr, len as usize / U16_SIZE);
         Self::from(name_bytes)

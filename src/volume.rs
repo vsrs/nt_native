@@ -94,6 +94,8 @@ pub struct SizeInformation {
 
 // FILE_FS_***_INFORMATION helpers
 impl Volume {
+    ///# Safety
+    ///be careful
     pub unsafe fn query_info<T: AsByteSliceMut>(handle: &Handle, class: FS_INFORMATION_CLASS, buffer: &mut T) -> Result<()> {
         let mut iosb: IO_STATUS_BLOCK = mem::zeroed();
         let bytes_buffer = buffer.as_byte_slice_mut();

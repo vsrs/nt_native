@@ -77,7 +77,7 @@ impl MountPoint {
     }
 
     fn add_link_name(&mut self, name: &[u16]) {
-        if self.dos_name.is_empty() && is_dos_volume_name(&name) {
+        if self.dos_name.is_empty() && is_dos_volume_name(name) {
             self.dos_name = NtString::from(name);
         } else if self.guid_name.is_empty() {
             debug_assert!(is_guid_volume_name(name));
@@ -96,7 +96,7 @@ impl MountPoint {
 
 #[allow(bad_style)]
 #[allow(dead_code)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 mod mountmgr {
     use crate::CTL_CODE;
     use winapi::shared::minwindef::{DWORD, ULONG, USHORT};
