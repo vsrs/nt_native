@@ -1,6 +1,6 @@
 [package]
 name = "nt_native"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["vsrs <vit@conrlab.com>"]
 edition = "2018"
 readme = "README.md"
@@ -11,12 +11,13 @@ repository = "https://github.com/vsrs/nt_native.git"
 description = "Windows Native subsystem bindings for the Rust programming language."
 
 [dependencies]
-cfg-if = "0.1.10"
-winapi = { version = "0.3" }
-ntapi = { version = "0.3" }
-bitflags = "1.0"
-wstr = "0.2"
+cfg-if = "~1.0"
+winapi = { version = "~0.3" }
+ntapi = { version = "~0.3" }
+bitflags = "~1.3"
 rdisk_shared = { version = "^0.1", default-features = false }
+windy = "~0.2"
+windy-macros = "~0.1"
 
 [features]
 default = ["std"]

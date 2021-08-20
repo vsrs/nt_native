@@ -6,7 +6,7 @@ use winapi::shared::ntstatus::STATUS_SUCCESS;
 #[macro_export]
 macro_rules! nt_str {
     ($str:tt) => {
-        NtString::from(wstr!($str).as_ref())
+        NtString::from($str)
     };
 }
 #[macro_export]
